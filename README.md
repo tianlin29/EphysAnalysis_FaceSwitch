@@ -11,9 +11,16 @@ src/Common
 - combineTrialData
 - load_behavioral_data
 
+src/PSTH
+- showPopPSTH 存在更改
+- showPopPSTH_choice_dependent
+- plotPSTH single ??
+- distinctPalette ??
 
 
-
+*****************
+TODO:
+所有fnd的预处理：删除低FR的unit，删除SNR为NaN的unit，确保没有targ cho为NaN的trial
 
 
 *****************

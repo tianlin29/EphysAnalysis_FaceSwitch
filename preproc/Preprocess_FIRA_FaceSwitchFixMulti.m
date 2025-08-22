@@ -2,6 +2,8 @@ run('../Initialize.m');
 addpath C:\Engine\EphysPreprocess\FIRA2FND
 
 %% preprocess (rand40)
+% go delay: from stim off to fp off is 500~1000 ms
+
 monkey = 'Nick';
 experiment = 'rand40';
 [~, n_files] = get_file_path(monkey, experiment);

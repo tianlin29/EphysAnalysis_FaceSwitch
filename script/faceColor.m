@@ -77,6 +77,40 @@ for n = 1:n_files
     end
 end
 
+%% PSTH of single units (color task)
+n = 3;
+fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
+
+% get ID
+task_set = fnd.getp('task_set');
+morph_level = fnd.getp('morph_level')*100; morph_level(task_set==2) = NaN;
+color_level = fnd.getp('color_level')*100; color_level(task_set==1) = NaN;
+targ_cho = fnd.getp('targ_cho');
+targ_cor = fnd.getp('targ_cor');
+
+trc = trial_classifier('plus_cat', 1, 'include_0coh', true);
+[ID, mean_coh] = trc.stim_choice(color_level, targ_cho, targ_cor); % correct trials only
+ID(task_set~=2) = NaN; % one task only
+trial_classifier_result(ID, {'color_level', 'targ_cor', 'targ_cho', 'task_set'}, {color_level, targ_cor, targ_cho, task_set});
+
+% plot PSTH
+psth = fnd.PSTH(ID, {'boxcar', 100}, [], [], 2);
+
+clear opt;
+opt.epoch = 2;
+opt.unitID = fnd.unitID;
+opt.plot = set_plot_opt('vik', max(ID(:)));
+
+fh = showSinglePSTH(fnd.tstamp, psth, opt);
+
+for f = 1:length(fh)
+    if f==1
+        exportgraphics(fh{f}, fullfile(FigDir, 'PSTH_single_unit_color_task.pdf'), 'ContentType', 'vector');
+    else
+        exportgraphics(fh{f}, fullfile(FigDir, 'PSTH_single_unit_color_task.pdf'), 'ContentType', 'vector', 'Append', true);
+    end
+end
+
 %% PCA (face task)
 for n = 1:n_files
     fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
