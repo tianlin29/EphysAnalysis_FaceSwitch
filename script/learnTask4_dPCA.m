@@ -1,12 +1,12 @@
 run('../Initialize.m');
 addpath(genpath(fullfile(MainDir, 'external', 'dpca_Kobak2016')));
 monkey = 'Nick';
-experiment = 'learnTask2';
+experiment = 'learnTask4';
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);
 
-task_color = [99 97 172; 242 128 128]/255;
+task_color = [99 97 172; 178 34 34]/255;
 
 %% dPCA
 fh_proj = cell(n_files, 1);
@@ -55,7 +55,13 @@ print(fh, '-dpdf', fullfile(FigDir, 'pair_signal.pdf'));
 % stat
 fprintf('\nSpearman''s rank correlation coefficient:\n')
 [rho, p_val] = corr((1:n_files)', task_signal, 'Type', 'Spearman');
-fprintf('Pair signal decreased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+if p_val>=0.05
+    fprintf('Pair signal did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho>0
+    fprintf('Pair signal increased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho<0
+    fprintf('Pair signal decreased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+end
 
 % plot choice signal
 fh = figure('Position', [100 100 300 300]); hold on
@@ -66,7 +72,13 @@ print(fh, '-dpdf', fullfile(FigDir, 'choice_signal.pdf'));
 % stat
 fprintf('\nSpearman''s rank correlation coefficient:\n')
 [rho, p_val] = corr((1:n_files)', choice_signal, 'Type', 'Spearman');
-fprintf('Choice signal did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+if p_val>=0.05
+    fprintf('Choice signal did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho>0
+    fprintf('Choice signal increased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho<0
+    fprintf('Choice signal decreased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+end
 
 
 

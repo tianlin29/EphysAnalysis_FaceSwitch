@@ -5,7 +5,7 @@ experiment = 'learnTask2';
 FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);
 
-task_color = [99 97 172; 242 128 128]/255;
+task_color = [99 97 172; 254 160 64]/255;
 subj_list.Nick = {'Nick20250528', 'Nick20250529', 'Nick20250530', 'Nick20250531', 'Nick20250601', ...
     'Nick20250604', 'Nick20250605', 'Nick20250606', 'Nick20250607', 'Nick20250608', ...
     'Nick20250609', 'Nick20250610', 'Nick20250611', 'Nick20250612', 'Nick20250613'}; % 15 sessions

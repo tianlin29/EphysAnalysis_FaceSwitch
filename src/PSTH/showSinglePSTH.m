@@ -1,6 +1,6 @@
 function fh = showSinglePSTH(tstamp, psth, opt)
 
-def.epoch = 2;
+def.epoch = 1;
 def.unitID = [];
 def.plot = set_plot_opt('vik', 5);
 opt = safeStructAssign(def, opt);

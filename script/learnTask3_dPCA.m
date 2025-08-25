@@ -1,7 +1,7 @@
 run('../Initialize.m');
 addpath(genpath(fullfile(MainDir, 'external', 'dpca_Kobak2016')));
-monkey = 'Nick';
-experiment = 'learnTask2';
+monkey = 'Woody';
+experiment = 'learnTask3';
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);

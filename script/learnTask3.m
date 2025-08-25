@@ -5,9 +5,95 @@ experiment = 'learnTask3';
 FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);
 
+task_color = [99 97 172; 242 128 128]/255;
+subj_list.Woody = {'Woody20231103', 'Woody20231104', 'Woody20231107', 'Woody20231108', 'Woody20231109', ...
+    'Woody20231110', 'Woody20231113', 'Woody20231114', 'Woody20231115', 'Woody20231116'}; % 10 sessions
+subj_list.Nick = {'Nick20250704', 'Nick20250705', 'Nick20250706', 'Nick20250707', 'Nick20250708', ...
+    'Nick20250709', 'Nick20250710', 'Nick20250711', 'Nick20250712', 'Nick20250713', ...
+    'Nick20250714', 'Nick20250715', 'Nick20250716'}; % these 3 sessions are actually increase switch frequency
+
+%%
+D = combineTrialData(fullfile(PreprocDir, sprintf('%s_%s.mat', monkey, experiment)));
+
+%% unsigned choice
+date = cellfun(@(x) x.date, D, 'uni', 0);
+cond = cellfun(@(x) x.cond, D);
+coh = cellfun(@(x) x.coh, D);
+targ_cor = cellfun(@(x) x.targ_cor, D);
+resp = cellfun(@(x) x.resp, D);
+cor = resp==targ_cor;
+
+clear opt
+% select data
+opt.subj_list = subj_list.(monkey);
+% opt.subj_list = opt.subj_list(end-2:end-1);
+% process data
+opt.log = true;
+opt.constant = false;
+opt.verbose = false;
+% plot
+opt.color = task_color;
+opt.average = false; % do not average across learning sessions
+opt.legend = {'Pair 1', 'Pair 3'};
+
+[~, fh_idv, fh_summary, stat] = run_unsigned_choice_2cond(cond, coh, cor, date, opt);
+fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [3 5], [500 300]*1.5);
+save(fullfile(InterimDir, 'unsigned_choice.mat'), 'stat')
+print(fh_summary, '-dpdf', fullfile(FigDir, 'unsigned_choice_summary.pdf'));
+print(fh_all, '-dpdf', fullfile(FigDir, 'unsigned_choice.pdf'));
+
+%% [stat] accuracy of unsigned choice
+stat = load(fullfile(InterimDir, 'unsigned_choice.mat')).stat;
+nses = length(stat);
+acc1 = cellfun(@(x) x.acc1, stat);
+acc2 = cellfun(@(x) x.acc2, stat);
+
+fprintf('Spearman''s rank correlation coefficient:\n')
+[rho, p_val] = corr((1:nses)', acc1', 'Type', 'Spearman');
+if p_val>=0.05
+    fprintf('Accuracy of pair 1 did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho>0
+    fprintf('Accuracy of pair 1 increased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+else
+    error('check')
+end
+[rho, p_val] = corr((1:nses)', acc2', 'Type', 'Spearman');
+if p_val>=0.05
+    fprintf('Accuracy of pair 2 did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho>0
+    fprintf('Accuracy of pair 2 increased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+else
+    error('check')
+end
+
+%% [stat] threshold of unsigned choice
+stat = load(fullfile(InterimDir, 'unsigned_choice.mat')).stat;
+nses = length(stat);
+thres1 = cellfun(@(x) x.thres1, stat);
+thres2 = cellfun(@(x) x.thres2, stat);
+
+fprintf('Spearman''s rank correlation coefficient:\n')
+[rho, p_val] = corr((1:nses)', thres1', 'Type', 'Spearman');
+if p_val>=0.05
+    fprintf('Threshold of pair 1 did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho>0
+    fprintf('Threshold of pair 1 increased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho<0
+    fprintf('Threshold of pair 1 decreased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+end
+[rho, p_val] = corr((1:nses)', thres2', 'Type', 'Spearman');
+if p_val>=0.05
+    fprintf('Threshold of pair 2 did not change with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho>0
+    fprintf('Threshold of pair 2 increased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+elseif p_val<0.05 && rho<0
+    fprintf('Threshold of pair 2 decreased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
+end
+
 %% PSTH of single units (pair 1)
 n = 1;
 fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+fnd = extract_epoch(fnd, 2);
 
 % get ID
 task_set = fnd.getp('task_set');
@@ -21,10 +107,9 @@ ID(task_set~=1) = NaN; % one task only
 trial_classifier_result(ID, {'morph_level', 'targ_cor', 'targ_cho', 'task_set'}, {morph_level, targ_cor, targ_cho, task_set});
 
 % plot PSTH
-psth = fnd.PSTH(ID, {'boxcar', 100}, [], [], 2);
+psth = fnd.PSTH(ID, {'boxcar', 100});
 
 clear opt;
-opt.epoch = 2;
 opt.unitID = fnd.unitID;
 opt.plot = set_plot_opt('vik', max(ID(:)));
 
