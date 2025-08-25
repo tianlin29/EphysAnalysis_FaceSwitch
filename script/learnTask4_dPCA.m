@@ -1,6 +1,6 @@
 run('../Initialize.m');
 addpath(genpath(fullfile(MainDir, 'external', 'dpca_Kobak2016')));
-monkey = 'Nick';
+monkey = 'Woody';
 experiment = 'learnTask4';
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
@@ -79,6 +79,59 @@ elseif p_val<0.05 && rho>0
 elseif p_val<0.05 && rho<0
     fprintf('Choice signal decreased with learning: rho = %.2f, %s\n', rho, p2str(p_val))
 end
+
+%% [stat] orthogonal pair and choice axis
+[orth_scores, orth_scores_perm_mn, p_values] = deal(nan(n_files, 1));
+for n = 1:n_files
+    data = load(fullfile(InterimDir, sprintf('popresp_dPCA_axis_session%d.mat', n))).data;
+    coef = load(fullfile(InterimDir, sprintf('dPCA_result_session%d.mat', n))).data;
+    tdim = data.tdim; % [task axis, choice axis]
+    W = coef.W; % (unit, dim)
+
+    task_axis = W(:,tdim(1)); % (unit, 1)
+    choice_axis = W(:,tdim(2)); % (unit, 1)
+
+    % get orthogonality score: abs(v1*v2 / (norm(v1)*norm(v2))), range is [0 1]
+    cos_sim = task_axis' * choice_axis / (norm(task_axis) * norm(choice_axis));
+    orth_scores(n) = abs(cos_sim);
+    
+    % statistical test for orthogonality using permutation test
+    n_permutations = 10000;
+    orth_scores_perm = zeros(n_permutations, 1);
+    for perm_idx = 1:n_permutations
+        % randomly shuffle the choice axis while keeping task axis fixed
+        perm_choice_axis = choice_axis(randperm(length(choice_axis)));
+        perm_cos_sim = (task_axis' * perm_choice_axis) / (norm(task_axis) * norm(perm_choice_axis));
+        orth_scores_perm(perm_idx) = abs(perm_cos_sim);
+    end
+    orth_scores_perm_mn(n) = mean(orth_scores_perm);
+    p_values(n) = mean(orth_scores_perm >= orth_scores(n));
+end
+
+% plot orthogonality scores across sessions
+fh = figure('Position', [100 100 300 300]); hold on
+plot(1:n_files, orth_scores, '.-', 'Color', 'k', 'LineWidth', 1, 'MarkerSize', 11)
+plot(1:n_files, orth_scores_perm_mn, '.-', 'Color', 'r', 'LineWidth', 1, 'MarkerSize', 11)
+legend({'Data', 'Permutated data'}); legend boxoff
+format_panel(gcf, 'xlabel', '#Session', 'ylabel', 'Orthogonality score (|cos θ|)')
+title('Pair-choice axis orthogonality')
+print(fh, '-dpdf', fullfile(FigDir, 'orthogonality_scores.pdf'));
+
+% plot p-value across sessions
+fh = figure('Position', [100 100 300 300]); hold on
+plot(1:n_files, p_values, '.-', 'Color', 'k', 'LineWidth', 1, 'MarkerSize', 11)
+plot(xlim, [0.05 0.05], '--', 'Color', 'r', 'LineWidth', 1)
+format_panel(gcf, 'xlabel', '#Session', 'ylabel', 'P-value')
+title('Pair-choice axis orthogonality')
+print(fh, '-dpdf', fullfile(FigDir, 'orthogonality_scores_pvalue.pdf'));
+
+% statistical summary
+fprintf('\nTest pair-choice axis orthogonality using permutation test:\n')
+fprintf('Mean orthogonality score (|cos θ|): %.4f ± %.4f (SD)\n', mean(orth_scores), std(orth_scores))
+fprintf('Range: [%.4f, %.4f]\n', min(orth_scores), max(orth_scores))
+
+% count sessions with significant orthogonality (p < 0.05)
+fprintf('Sessions with significant orthogonality (p < 0.05): %d/%d\n', sum(p_values < 0.05), n_files)
 
 
 
