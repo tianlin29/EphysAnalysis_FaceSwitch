@@ -1,7 +1,7 @@
 run('../Initialize.m');
 
 %% load fnd
-fnd = load(get_file_path(FormattedDir, 'Woody', 'learnTask3', 1, 'FND')).fnd;
+fnd = load(get_file_path('Woody', 'learnTask3', 1, 'FND_sorted')).fnd;
 fnd = load('\\10.10.49.250\formatted_data\FaceSwitch_Monkey\Woody\20230923\Woody20230923_01_FND_sorted.mat').fnd;
 
 %% check all the basic info of a session
@@ -77,9 +77,12 @@ figure; plot(psth{2}(5,:,1)); % psth of unit 5
 % get psth of specified epoch
 psth = fnd.PSTH_epoch(condID, {'boxcar', 100}, [], [], 2);
 
+%% extract epoch
+fnd_new = fnd.extract_epoch(2);
+
 %% extract trial
 trialFlg = ~isnan(fnd.getp('targ_cho'));
-nfnd = fnd.extract_trial(trialFlg);
+fnd_new = fnd.extract_trial(trialFlg);
 
 %% extract unit
 % set other units as invalid
