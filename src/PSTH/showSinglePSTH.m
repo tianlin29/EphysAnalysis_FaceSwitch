@@ -18,7 +18,7 @@ for u = 1:nunit
     end
     subplot(8,5,subplot_idx); hold on
     for c = 1:ncond
-        plot(tstamp{opt.epoch}, psth{opt.epoch}(u,:,c), 'Color', opt.plot.color(c,:));
+        plot(tstamp{opt.epoch}, psth{opt.epoch}(u,:,c), 'Color', opt.plot.color(c,:), 'LineStyle', opt.plot.linestyle{c});
     end
     title(sprintf('ch%d u%d', opt.unitID(u,2), opt.unitID(u,3)))
 end

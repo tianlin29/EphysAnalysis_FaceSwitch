@@ -75,7 +75,7 @@ psth = fnd.PSTH(condID, {'boxcar', 100}, [], true); % (unit, time)
 figure; plot(psth{2}(5,:,1)); % psth of unit 5
 
 % get psth of specified epoch
-psth = fnd.PSTH_epoch(condID, {'boxcar', 100}, [], [], 2);
+psth = fnd.PSTH(condID, {'boxcar', 100}, [], [], 2);
 
 %% extract epoch
 fnd_new = fnd.extract_epoch(2);

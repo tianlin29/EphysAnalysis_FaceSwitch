@@ -11,6 +11,7 @@ def.t_range = [0 600];
 def.dim = [1 2];
 def.conv_kernel = [];
 def.bin_num = 20;
+def.ndim = 3;
 
 opt = safeStructAssign(def, opt);
 
@@ -18,7 +19,7 @@ if isempty(opt.PC_coef)
     error('opt.PC_coef should be filled');
 end
 
-ndim = 3;
+ndim = opt.ndim;
 
 
 %% smooth raster
@@ -37,18 +38,20 @@ end
 
 %% conver to PCA
 
+valid_tri = ~isnan(ID(1,:));
+
 T = opt.t_range(1):opt.t_range(2);
 ind = Tstamp >= opt.t_range(1) & Tstamp <= opt.t_range(2);
 
 nT = length(T);
 
-ntri = size(raster, 3);
+ntri = sum(valid_tri);
 ncond = size(psth, 3);
 
 score = nan(nT, ntri, ndim); % time x trial x dim
 psth_score = nan(nT, ncond, ndim); 
 for dim=1:ndim
-    PSTH1 = raster(:, ind, :);
+    PSTH1 = raster(:, ind, valid_tri);
     sc = PSTH1(:,:)' * opt.PC_coef(:, dim);
     score(:,:,dim) = reshape(sc, [nT ntri]);
     

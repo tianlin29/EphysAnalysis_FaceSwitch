@@ -14,7 +14,7 @@ src/Common
 src/PSTH
 - showPopPSTH 存在更改
 - showPopPSTH_choice_dependent
-- plotPSTH single ??
+- plotSinglePSTH
 - distinctPalette ??
 
 

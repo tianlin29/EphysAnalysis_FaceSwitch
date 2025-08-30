@@ -44,7 +44,8 @@ switch monkey
         session_list.passiveLong = {'20250807', '20250808', '20250809'}; % main face task is subsession 1, passive task is subsession 2
         session_list.RSVP_task1_2 = {'20250812', '20250813'}; % session 1: pure mask from cycle 2; main face task is subsession 1, passive task is subsession 2
         session_list.rand40 = {'20250815', '20250816', '20250817', '20250818'};
-        session_list.faceColor = {'20250819', '20250820', '20250821'};
+        session_list.faceColor = {'20250819', '20250820', '20250821', '20250822', '20250823', ...
+            '20250825', '20250826'};
 end
 
 n_files = length(session_list.(experiment));

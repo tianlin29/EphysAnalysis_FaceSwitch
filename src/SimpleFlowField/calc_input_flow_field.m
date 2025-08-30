@@ -45,6 +45,8 @@ end
 
 %% conver to PCA
 
+valid_tri = ~isnan(ID(1,:));
+
 T = opt.t_range(1):opt.t_range(2);
 ind = Tstamp >= opt.t_range(1) & Tstamp <= opt.t_range(2);
 
@@ -52,13 +54,13 @@ input = input(ind, :, :);
 
 nT = length(T);
 
-ntri = size(raster, 3);
+ntri = sum(valid_tri);
 ncond = size(psth, 3);
 
 score = nan(nT, ntri, ndim); % time x trial x dim
 psth_score = nan(nT, ncond, ndim); 
 for dim=1:ndim
-    PSTH1 = raster(:, ind, :);
+    PSTH1 = raster(:, ind, valid_tri);
     sc = PSTH1(:,:)' * opt.PC_coef(:, dim);
     score(:,:,dim) = reshape(sc, [nT ntri]);
     
@@ -88,7 +90,7 @@ flow = score(2:end, :, opt.dim) - score(1:end-1, :, opt.dim);  % (T-2) x N x 2
 pos = score(1:end-1, :, opt.dim);  % position at t
 pos = reshape(pos, [], 2);
 flow = reshape(flow, [], 2);
-input = reshape(input(1:end-1, :, :), [], 2);
+input = reshape(input(1:end-1, valid_tri, :), [], 2);
 
 % Bin positions
 binSize = (max(pos(:,1)) - min(pos(:,1)) + max(pos(:,2)) - min(pos(:,2)))/2 / opt.bin_num;

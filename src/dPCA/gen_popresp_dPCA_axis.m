@@ -2,6 +2,7 @@ function data = gen_popresp_dPCA_axis(fnd, ID, opt)
 def.epoch = 1;
 def.target = {};
 def.coefficient_data = [];
+def.detrend = false;
 
 opt = safeStructAssign(def, opt);
 
@@ -21,7 +22,7 @@ if any(coef.exclude_unit)
     psth(coef.exclude_unit,:,:) = [];
 end
 
-if isfield(coef, 'mTrend')
+if opt.detrend
     trend = nanmean(psth, 3);
     psth = psth - trend;
 end

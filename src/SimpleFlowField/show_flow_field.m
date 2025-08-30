@@ -14,7 +14,6 @@ def.input_col = [0 0 0];
 def.legend = {};
 def.xlabel = 'X';
 def.ylabel = 'Y';
-def.title = [];
 
 opt = safeStructAssign(def, opt);
 
@@ -77,7 +76,6 @@ end
 set(gca, 'xlim', xlims, 'ylim', ylims');
 xlabel(opt.xlabel);
 ylabel(opt.ylabel);
-title(opt.title);
 axis equal;
 
 end

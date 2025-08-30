@@ -3,23 +3,20 @@ addpath(genpath(fullfile(MainDir, 'external', 'dpca_Kobak2016')));
 monkey = 'Woody';
 experiment = 'learnTask4';
 [~, n_files] = get_file_path(monkey, experiment);
-FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
-InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);
-
-task_color = [99 97 172; 178 34 34]/255;
+FigDir = fullfile(MainFigDir, 'dPCA'); mkdir(FigDir);
+InterimDir = fullfile(MainInterimDir, 'dPCA'); mkdir(InterimDir);
 
 %% dPCA
 fh_proj = cell(n_files, 1);
 for n = 1:n_files
     n
     fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
-    fh_proj{n} = run_dPCA(fnd, InterimDir, FigDir, n);
+    fh_proj{n} = run_dPCA(fnd, InterimDir, FigDir, monkey, experiment, n);
 end
 
 [fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [4 4], [400 400]*1.5);
-print(fh_1, '-dpdf', fullfile(FigDir, 'dPCA_task.pdf'));
-print(fh_2, '-dpdf', fullfile(FigDir, 'dPCA_choice.pdf'));
-
+print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_task_%s_%s.pdf', monkey, experiment)));
+print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_choice_%s_%s.pdf', monkey, experiment)));
 
 %% [stat] dPCA pair signal
 [task_signal, choice_signal] = deal(nan(n_files, 1));
@@ -113,37 +110,40 @@ fh = figure('Position', [100 100 300 300]); hold on
 plot(1:n_files, orth_scores, '.-', 'Color', 'k', 'LineWidth', 1, 'MarkerSize', 11)
 plot(1:n_files, orth_scores_perm_mn, '.-', 'Color', 'r', 'LineWidth', 1, 'MarkerSize', 11)
 legend({'Data', 'Permutated data'}); legend boxoff
-format_panel(gcf, 'xlabel', '#Session', 'ylabel', 'Orthogonality score (|cos θ|)')
-title('Pair-choice axis orthogonality')
-print(fh, '-dpdf', fullfile(FigDir, 'orthogonality_scores.pdf'));
+format_panel(gcf, 'xlabel', '#Session', 'ylabel', 'Similarity score (|cos θ|)')
+title('Pair-choice axis similarity')
+print(fh, '-dpdf', fullfile(FigDir, sprintf('%s_%s_similarity_scores.pdf', experiment, monkey)));
 
 % plot p-value across sessions
 fh = figure('Position', [100 100 300 300]); hold on
 plot(1:n_files, p_values, '.-', 'Color', 'k', 'LineWidth', 1, 'MarkerSize', 11)
 plot(xlim, [0.05 0.05], '--', 'Color', 'r', 'LineWidth', 1)
 format_panel(gcf, 'xlabel', '#Session', 'ylabel', 'P-value')
-title('Pair-choice axis orthogonality')
-print(fh, '-dpdf', fullfile(FigDir, 'orthogonality_scores_pvalue.pdf'));
+title('Pair-choice axis similarity')
+print(fh, '-dpdf', fullfile(FigDir, sprintf('%s_%s_similarity_scores_pvalue.pdf', experiment, monkey)));
 
 % statistical summary
-fprintf('\nTest pair-choice axis orthogonality using permutation test:\n')
-fprintf('Mean orthogonality score (|cos θ|): %.4f ± %.4f (SD)\n', mean(orth_scores), std(orth_scores))
+fprintf('\nTest pair-choice axis similarity using permutation test:\n')
+fprintf('Mean similarity score (|cos θ|): %.4f ± %.4f (SD)\n', mean(orth_scores), std(orth_scores))
 fprintf('Range: [%.4f, %.4f]\n', min(orth_scores), max(orth_scores))
 
-% count sessions with significant orthogonality (p < 0.05)
-fprintf('Sessions with significant orthogonality (p < 0.05): %d/%d\n', sum(p_values < 0.05), n_files)
+% count sessions with significant similarity
+fprintf('Sessions with non-significant similarity (i.e., orthogonal) (p>0.05): %d/%d\n', sum(p_values>0.05), n_files)
 
 
 
 
 %% functions
-function fh_proj = run_dPCA(fnd, InterimDir, FigDir, session_id)
+function fh_proj = run_dPCA(fnd, InterimDir, FigDir, monkey, experiment, session_id)
 
 %% 1. load data/setup parameters
 % select unit
 r = fnd.FR({2, [100 500]});
 I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
 fnd = fnd.set_unit_criteria('custom', I);
+
+% select trial
+fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
 
 % classifier
 coh = fnd.getp('morph_level')*100;
@@ -174,43 +174,42 @@ if regularize
 
     r = fnd.raster_cond(ID_dpca, epoch, 'array'); r = r{1}; % (unit, trial, time, condition)
     [fh, data] = dPCA_optimize_regularization(r, fnd.tstamp{epoch}, opt);
-    print(fh, '-dpdf', fullfile(FigDir, sprintf('optimal_lambda_session%d.pdf', session_id)));
-    save(fullfile(InterimDir, sprintf('optimal_lambda_session%d.mat', session_id)), 'data');
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('optimal_lambda_%s_%s_session%d.pdf', monkey, experiment, session_id)));
+    save(fullfile(InterimDir, sprintf('optimal_lambda_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data')
 end
 
 %% 3. run main dPCA
 clear opt;
-opt.detrend = true;
+opt.detrend = false;
 opt.tbin = tbin;
-opt.t_range = [200 600];
+opt.t_range = [0 600];
 opt.param_combination = param_combination;
 opt.param_name = param_name;
 opt.show_figure = false;
-if regularize; opt.regularization = load(fullfile(InterimDir, sprintf('optimal_lambda_session%d.mat', session_id))).data; end
+if regularize; opt.regularization = load(fullfile(InterimDir, sprintf('optimal_lambda_%s_%s_session%d.mat', monkey, experiment, session_id))).data; end
 
 r = fnd.raster_cond(ID_dpca, epoch, 'array'); r = r{1}; % (unit, trial, time, condition)
 [fh, data] = dPCA_stim_choice(r, fnd.tstamp{epoch}, opt);
-if ~isnan(fh); saveas(fh, fullfile(FigDir, sprintf('dPCA_session%d.fig', session_id)), 'fig'); end
-save(fullfile(InterimDir, sprintf('dPCA_result_session%d.mat', session_id)), 'data');
+if ~isnan(fh); saveas(fh, fullfile(FigDir, sprintf('dPCA_%s_%s_session%d.pdf', monkey, experiment, session_id)), 'fig'); end
+save(fullfile(InterimDir, sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
 
 %% 4. compute neural data along dPCA axes
 clear opt;
 opt.epoch = 2;
 opt.target = {{'Task', 1}, {'Choice', 1}}; % target is stimulus dimension 1 and choice dimension 1
-opt.coefficient_data = load(fullfile(InterimDir, sprintf('dPCA_result_session%d.mat', session_id))).data;
+opt.coefficient_data = load(fullfile(InterimDir, sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
 
 data = gen_popresp_dPCA_axis(fnd, ID, opt);
-save(fullfile(InterimDir, sprintf('popresp_dPCA_axis_session%d.mat', session_id)), 'data');
+data.cutoff = [find(fnd.tstamp{opt.epoch}==0), find(fnd.tstamp{opt.epoch}==600)];
+save(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
 
 %% 5. show neural data along dPCA axes
 clear opt;
 opt.conv = fspecial('average', [1, 100]); % 100 ms boxcar
 opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
 
-fh_proj = show_popresp_dPCA_axis(fullfile(InterimDir, sprintf('popresp_dPCA_axis_session%d.mat', session_id)), opt);
+fh_proj = show_popresp_dPCA_axis(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id)), opt);
 format_panel(fh_proj, 'ylim', [-55 55])
-print(fh_proj, '-dpdf', fullfile(FigDir, sprintf('popresp_dPCA_axis_session%d.pdf', session_id)));
+print(fh_proj, '-dpdf', fullfile(FigDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.pdf', monkey, experiment, session_id)));
 
 end
-
-
