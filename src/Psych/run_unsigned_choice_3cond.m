@@ -1,4 +1,4 @@
-function [fh, fh_idv, fh_summary, stat] = run_unsigned_choice_2cond(cond, coh, cor, session, opt)
+function [fh, fh_idv, fh_summary, stat] = run_unsigned_choice_3cond(cond, coh, cor, session, opt)
 
 % select data
 def.session_list = [];
@@ -9,7 +9,8 @@ def.constant = false;
 def.verbose = true;
 % plot
 if length(opt.session_list)<=10; def.tile_fh_idv = true; else; def.tile_fh_idv = false; end
-def.color = [0 0 0; 1 0 0];
+def.color = [0 0 0; 1 0 0; 0 1 0];
+def.linewidth = [0.5, 0.5, 0.5];
 def.average = true;
 def.legend = {'Cond 1', 'Cond 2'};
 if exist('opt', 'var')
@@ -24,11 +25,11 @@ nsubj = length(opt.session_list);
 for s = 1:nsubj
     opt.session_idx = s;
     I = session==opt.session_list(s);
-    [stat{s}, fh_idv{s}] = show_unsigned_choice_2cond(cond(I), coh(I), cor(I), opt);
+    [stat{s}, fh_idv{s}] = show_unsigned_choice_3cond(cond(I), coh(I), cor(I), opt);
 end
 
 % average across subjects
-fh = show_unsigned_choice_2cond_average(stat, opt);
+fh = show_unsigned_choice_3cond_average(stat, opt); % TBU
 
 % show quick summary across sessions
 fh_summary = show_quick_summary(stat, opt);
@@ -39,7 +40,8 @@ end
 %% show_quick_summary
 function fh_summary = show_quick_summary(stat, opt)
 
-def.color = [0 0 0; 1 0 0];
+def.color = [0 0 0; 1 0 0; 0 1 0];
+def.linewidth = [0.5, 0.5, 0.5];
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -48,35 +50,39 @@ end
 
 ntrial1 = cellfun(@(x) x.ntrial1, stat(:));
 ntrial2 = cellfun(@(x) x.ntrial2, stat(:));
+ntrial3 = cellfun(@(x) x.ntrial3, stat(:));
 acc1 = cellfun(@(x) round(x.acc1*100), stat(:));
 acc2 = cellfun(@(x) round(x.acc2*100), stat(:));
-thres1 = cellfun(@(x) round(x.thres1*100), stat(:)); 
-% thres1(thres1>=100 | thres1<0) = NaN;
-thres2 = cellfun(@(x) round(x.thres2*100), stat(:)); 
-% thres2(thres2>=100 | thres2<0) = NaN;
-tbl = table(ntrial1, ntrial2, acc1, acc2, thres1, thres2);
+acc3 = cellfun(@(x) round(x.acc3*100), stat(:));
+thres = cellfun(@(x) round(x.thres*100), stat(:), 'uni', 0); thres = cell2mat(thres);
+tbl = table(ntrial1, ntrial2, ntrial3, acc1, acc2, acc3);
 disp(tbl)
 
 fh_summary = figure('pos', [50+240 300 300 120]);
+ncond = stat{1}.ncond;
+
 subplot(1,2,1); hold on
-plot(acc1, '.-', 'markers', 7, 'Color', opt.color(1,:));
-plot(acc2, '.-', 'markers', 7, 'Color', opt.color(2,:));
+plot(acc1, '.-', 'markers', 7, 'Color', opt.color(1,:), 'LineWidth', opt.linewidth(1));
+plot(acc2, '.-', 'markers', 7, 'Color', opt.color(2,:), 'LineWidth', opt.linewidth(2));
+plot(acc3, '.-', 'markers', 7, 'Color', opt.color(3,:), 'LineWidth', opt.linewidth(3));
 format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Accuracy (%)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
 subplot(1,2,2); hold on
-plot(thres1, '.-', 'markers', 7, 'Color', opt.color(1,:));
-plot(thres2, '.-', 'markers', 7, 'Color', opt.color(2,:));
+for c = 1:ncond
+    plot(thres(:,c), '.-', 'markers', 7, 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
+end
 format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Threshold (% Morph)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
 
 end
 
 
 %% show_unsigned_choice_2cond_average
-function fh = show_unsigned_choice_2cond_average(stat, opt)
+function fh = show_unsigned_choice_3cond_average(stat, opt)
 
 def.average = true;
 def.log = true;
-def.color = [0 0 0; 1 0 0];
-def.legend = {'Cond 1', 'Cond 2'};
+def.color = [0 0 0; 1 0 0; 0 1 0];
+def.linewidth = [0.5, 0.5, 0.5];
+def.legend = {'Cond 1', 'Cond 2', 'Cond 3'};
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -142,7 +148,7 @@ end
 
 
 %% show_unsigned_choice_2cond
-function [stat, fh_idv] = show_unsigned_choice_2cond(cond, coh, cor, opt)
+function [stat, fh_idv] = show_unsigned_choice_3cond(cond, coh, cor, opt)
 
 def.session_list = [];
 def.session_idx = [];
@@ -150,7 +156,8 @@ def.log = true;
 def.constant = false;
 def.verbose = true;
 def.tile_fh_idv = [];
-def.color = [0 0 0; 1 0 0];
+def.color = [0 0 0; 1 0 0; 0 1 0];
+def.linewidth = [0.5, 0.5, 0.5];
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -160,6 +167,7 @@ end
 % process coh
 abs_coh = abs(coh); % absolute coh
 ucoh = unique(abs_coh); % unique coh
+ncoh = length(ucoh);
 
 if opt.log
     lucoh = log(ucoh); % log coh
@@ -176,37 +184,29 @@ end
 fcoh = linspace(mincoh, max(abs_coh), 100); fcoh = fcoh(:); % coh for function
 
 % get choice accuracy
-I1 = cond==1; I2 = cond==2;
-[p1, pse1] = calcGroupMean(cor(I1), abs_coh(I1), ucoh, 'binary');
-[p2, pse2] = calcGroupMean(cor(I2), abs_coh(I2), ucoh, 'binary');
+ncond = length(unique(cond));
+[p, pse] = deal(nan(ncoh, ncond));
+for c = 1:ncond
+    [p(:,c), pse(:,c)] = calcGroupMean(cor(cond==c), abs_coh(cond==c), ucoh, 'binary');
+end
 
 % fit to psychometric function, get threshold
 % logit(P) = a0 + a1*cond + (a2 + cond*a3)*coh
 %          = a0 + a1*cond + a2*coh + a3*coh*cond
 % no constant term:
 % logit(P) =                a2*coh + a3*coh*cond
-if opt.constant
-    [alpha, ~, stat_glmfit] = glmfit([cond==2, abs_coh, abs_coh.*(cond==2)], cor, 'binomial', 'link', 'logit'); % logit(P) = a0 + a1*cond + a2*coh + a3*coh*cond
-    fresp1 = glmval(alpha, [zeros(size(fcoh)), fcoh, fcoh.*zeros(size(fcoh))], 'logit');
-    fresp2 = glmval(alpha, [ones(size(fcoh)), fcoh, fcoh.*ones(size(fcoh))], 'logit');
-    thres1 = fminsearch(@(abs_coh) abs(glmval(alpha, [0, abs_coh, 0], 'logit') - 0.816), .2);
-    thres2 = fminsearch(@(abs_coh) abs(glmval(alpha, [1, abs_coh, abs_coh], 'logit') - 0.816), .2);
-else
-    [alpha, ~, stat_glmfit] = glmfit([abs_coh, abs_coh.*(cond==2)], cor, 'binomial', 'link', 'logit', 'Constant', 'off'); % logit(P) = a2*coh + a3*coh*cond
-    fresp1 = glmval(alpha, [fcoh, fcoh.*zeros(size(fcoh))], 'logit', 'Constant', 'off');
-    fresp2 = glmval(alpha, [fcoh, fcoh.*ones(size(fcoh))], 'logit', 'Constant', 'off');
-    thres1 = fminsearch(@(abs_coh) abs(glmval(alpha, [abs_coh, 0], 'logit', 'Constant', 'off') - 0.816), .2);
-    thres2 = fminsearch(@(abs_coh) abs(glmval(alpha, [abs_coh, abs_coh], 'logit', 'Constant', 'off') - 0.816), .2);
-end
-
-if opt.verbose
-    fprintf('session %s\n', opt.session_list(opt.session_idx))
-    if length(alpha)==4; fprintf('alpha0 (bias) = %1.3f (p = %s)\n', alpha(end-3), p2str(stat_glmfit.p(end-3))); end
-    if length(alpha)==4; fprintf('alpha1 (conditional bias) = %1.3f (p = %s)\n', alpha(end-2), p2str(stat_glmfit.p(end-2))); end
-    fprintf('alpha2 (slope) = %1.3f (p = %s)\n', alpha(end-1), p2str(stat_glmfit.p(end-1)));
-    fprintf('alpha3 (conditional slope) = %1.3f (p = %s)\n', alpha(end), p2str(stat_glmfit.p(end)));
-    fprintf('threshold of condition 1 (81.6%% correct): %1.1f%% coh\n', thres1*1e2);
-    fprintf('threshold of condition 2 (81.6%% correct): %1.1f%% coh\n\n', thres2*1e2);
+fresp = nan(length(fcoh), ncond);
+thres = nan(1, ncond);
+for c = 1:ncond
+    if opt.constant
+        [alpha, ~, stat_glmfit] = glmfit([abs_coh(cond==c)], cor(cond==c), 'binomial', 'link', 'logit'); % logit(P) = a0 + a2*coh
+        fresp(:,c) = glmval(alpha, fcoh, 'logit');
+        thres(c) = fminsearch(@(abs_coh) abs(glmval(alpha, abs_coh, 'logit') - 0.816), .2);
+    else
+        [alpha, ~, stat_glmfit] = glmfit([abs_coh(cond==c)], cor(cond==c), 'binomial', 'link', 'logit', 'Constant', 'off'); % logit(P) = a2*coh
+        fresp(:,c) = glmval(alpha, fcoh, 'logit', 'Constant', 'off');
+        thres(c) = fminsearch(@(abs_coh) abs(glmval(alpha, abs_coh, 'logit', 'Constant', 'off') - 0.816), .2);
+    end
 end
 
 % plot
@@ -217,17 +217,18 @@ else
 end
 hold on;
 if opt.log
-    plot(log(fcoh), fresp1, 'Color', opt.color(1,:));
-    plot(log(fcoh), fresp2, 'Color', opt.color(2,:));
+    for c = 1:ncond
+        plot(log(fcoh), fresp(:,c), 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
+    end
 else
-    plot(fcoh, fresp1, 'Color', opt.color(1,:));
-    plot(fcoh, fresp2, 'Color', opt.color(2,:));
+    for c = 1:ncond
+        plot(fcoh, fresp(:,c), 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
+    end
 end
-plot(lucoh, p1, '.', 'markers', 7, 'Color', opt.color(1,:));
-plot(lucoh, p2, '.', 'markers', 7, 'Color', opt.color(2,:));
-cerrorbar(lucoh, p1, pse1, 'Color', opt.color(1,:));
-cerrorbar(lucoh, p2, pse2, 'Color', opt.color(2,:));
-
+for c = 1:ncond
+    plot(lucoh, p(:,c), '.', 'markers', 7, 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
+    cerrorbar(lucoh, p(:,c), pse(:,c), 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
+end
 if opt.log
     opt.xlim = log([3 100]/100);
     opt.xtick = log([3 6 12 24 48 96]'/100);
@@ -246,13 +247,12 @@ format_panel(gca, ...
 if ~isempty(opt.session_list); title(['session', num2str(opt.session_list(opt.session_idx))]); end
 
 % stat
-stat = struct('ucoh', ucoh, 'lucoh', lucoh, 'p1', p1, 'p2', p2, ... % plot data
-    'fcoh', fcoh, 'fresp1', fresp1, 'fresp2', fresp2, ... % plot fit result
-    'alpha', alpha(:), 'stat_glmfit', stat_glmfit, ...
-    'thres1', thres1, 'thres2', thres2, ...
-    'ntrial1', sum(cond==1), 'ntrial2', sum(cond==2), ... % trial number for quick summary
-    'acc1', mean(cor(cond==1)), 'acc2', mean(cor(cond==2)), ... % accuracy for quick summary
-    'lapse1', 1-p1(end), 'lapse2', 1-p2(end)); % lapse rate for quick summary
+stat = struct('ucoh', ucoh, 'lucoh', lucoh, 'ncond', ncond, 'p', p, ... % plot data
+    'fcoh', fcoh, 'fresp', fresp, ... % plot fit result
+    'thres', thres, ...
+    'ntrial1', sum(cond==1), 'ntrial2', sum(cond==2), 'ntrial3', sum(cond==3), ... % trial number for quick summary
+    'acc1', mean(cor(cond==1)), 'acc2', mean(cor(cond==2)), 'acc3', mean(cor(cond==3)), ... % accuracy for quick summary
+    'lapse1', 1-p(end,1), 'lapse2', 1-p(end,2), 'lapse3', 1-p(end,3)); % lapse rate for quick summary
 
 end
 
