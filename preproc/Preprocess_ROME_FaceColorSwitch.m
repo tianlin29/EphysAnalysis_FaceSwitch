@@ -1,12 +1,5 @@
 run('../Initialize.m');
 
-%% info
-% Woody:
-% noCue (delete), learnTask3, switchFreq, passiveLong, intermediate (delete), learnTask4
-
-% Nick:
-% learnTask2, learnTask3, learnTask4
-
 %% load data
 load_opt.remove_fixbreak = 0; % whether to remove fixbreak/nochoice/nofix trials
 load_opt.remove_eyedata = 1; % whether to remove eyelink data  (set it true if you don't analyze eye data)
@@ -15,9 +8,9 @@ load_opt.remove_eyedata = 1; % whether to remove eyelink data  (set it true if y
 load_opt.remove_invalid_tr = 0; % whether to remo ve invalid trials (default: true, set true unless you have a reason)
 
 load_opt.data_path = '\\10.10.49.250\'; % just simply load data from dataserver
-load_opt.xls_file = 'Train_FaceSwitch.xlsx'; % Psych_FaceSwitch or Train_FaceSwitch
+load_opt.xls_file = 'Psych_FaceSwitch.xlsx'; % Psych_FaceSwitch or Train_FaceSwitch
 load_opt.subject_name = {'Nick'}; % Woody or Nick
-load_opt.experiment_name = ''; % if empty, load all the sessions of this subject
+load_opt.experiment_name = 'faceColor'; % if empty, load all the sessions of this subject
 load_opt.load_formatted_data = 1;
 
 if length(load_opt.subject_name)~=1
@@ -37,7 +30,8 @@ date = get_date(D);
 [block_type, block_type_processed] = get_block_type(D); % block type: 1 ..task 1, 2 ..task 2, 3 ..switch; block_type_processed: 1 ..single, 2 ..switch
 cond = cellfun(@(x) x.curr_task_set, D);
 [cond_switch, n_after_switch, n_after_nonswitch] = get_cond_switch(D); % 1 ..non-switch, 2 ..switch
-coh = cellfun(@(x) x.morph_level(1), D);
+morph_level = cellfun(@(x) x.morph_level(1), D);
+color_level = cellfun(@(x) x.color_level(1), D);
 fluc = cellfun(@(x) x.stim_morphvals'*2-1, D, 'uni', 0); % make sure column is time
 stim_dur = cellfun(@(x) x.stim_dur, D);
 stim_size = cellfun(@(x) x.stim_aperture(3), D);
@@ -66,7 +60,7 @@ end
 % save data
 [trial_data, check] = save_trial_data(subj, date, D, valid, ...
     trial_id, session_id, block_id, ...
-    coh, stim_size, stim_set, ...
+    morph_level, color_level, stim_size, stim_set, ...
     rt, stim_dur, ...
     targ_cor, resp, result, ...
     block_type, block_type_processed, cond, cond_switch, n_after_switch, n_after_nonswitch, ...
@@ -80,7 +74,7 @@ end
 %% additional functions
 function [trial_data, check] = save_trial_data(subj, date, D, valid, ...
     trial_id, session_id, block_id, ...
-    coh, stim_size, stim_set, ...
+    morph_level, color_level, stim_size, stim_set, ...
     rt, stim_dur, ...
     targ_cor, resp, result, ...
     block_type, block_type_processed, cond, cond_switch, n_after_switch, n_after_nonswitch, ...
@@ -89,14 +83,15 @@ function [trial_data, check] = save_trial_data(subj, date, D, valid, ...
 check = table(trial_id, cond, result, cond_switch, n_after_switch, targ_cor);
 
 trial_data = cell(size(D));
-for k = 1:length(coh)
+for k = 1:length(D)
     % id
     trial_data{k}.subj = subj{k};
     trial_data{k}.date = date{k};
     trial_data{k}.session_id = session_id(k);
     trial_data{k}.block_id = block_id(k);
     % coherence
-    trial_data{k}.coh = coh(k);
+    trial_data{k}.morph_level = morph_level(k);
+    trial_data{k}.color_level = color_level(k);
     trial_data{k}.stim_size = stim_size(k);
     trial_data{k}.stim_set = stim_set{k};
     % time

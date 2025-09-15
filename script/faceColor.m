@@ -5,6 +5,83 @@ experiment = 'faceColor';
 FigDir = fullfile(MainFigDir, 'faceColor'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'faceColor'); mkdir(InterimDir);
 
+%%
+D = combineTrialData(fullfile(PreprocDir, sprintf('%s_%s.mat', monkey, experiment)));
+
+%% block design
+session = cellfun(@(x) x.session_id, D);
+cond = cellfun(@(x) x.cond, D);
+fh = figure;
+for n = 1:max(session)
+    subplot(5,5,n); hold on
+    cond_ = cond(session==n)';
+    h = imagesc(cond_, [1 2]);
+    map = [0 0 0;
+        44 145 224]/255;
+    colormap(map)
+    set(h, 'AlphaData', 0.4*(ones(size(cond_))));
+    title(sprintf('session %d', n))
+end
+format_panel(fh, 'axis', 'normal', ...
+    'xtick', 0:200:1000, 'xlabel', '#Trial');
+print(fh, '-dpdf', fullfile(FigDir, sprintf('block_design_%s_%s.pdf', monkey, experiment)));
+
+%% unsigned choice
+session = cellfun(@(x) x.session_id, D);
+cond = cellfun(@(x) x.cond, D);
+morph_level = cellfun(@(x) x.morph_level, D);
+color_level = cellfun(@(x) x.color_level, D);
+coh = nan(size(cond)); coh(cond==1) = morph_level(cond==1); coh(cond==2) = color_level(cond==2);
+targ_cor = cellfun(@(x) x.targ_cor, D);
+resp = cellfun(@(x) x.resp, D);
+cor = resp==targ_cor;
+
+clear opt
+% select data
+opt.session_list = 1:max(session);
+% process data
+opt.log = true;
+opt.constant = false;
+opt.verbose = false;
+% plot
+opt.average = false; % do not average across learning sessions
+
+[~, fh_idv, fh_summary, stat] = run_unsigned_choice_2cond(cond, coh, cor, session, opt);
+fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [5 5], [500 500]*1.5);
+save(fullfile(InterimDir, sprintf('unsigned_choice_%s_%s.mat', monkey, experiment)), 'stat')
+print(fh_summary, '-dpdf', fullfile(FigDir, sprintf('unsigned_choice_summary_%s_%s.pdf', monkey, experiment)));
+print(fh_all, '-dpdf', fullfile(FigDir, sprintf('unsigned_choice_%s_%s.pdf', monkey, experiment)));
+
+% plot lapse rate additionally
+lapse1 = cellfun(@(x) x.lapse1, stat);
+lapse2 = cellfun(@(x) x.lapse2, stat);
+figure; hold on;
+plot(lapse1, '.-', 'Color', 'black')
+plot(lapse2, '.-', 'Color', 'red')
+format_panel(gcf, 'xlabel', '#Session', 'ylabel', 'Lapse rate')
+
+%% choice
+session = cellfun(@(x) x.session_id, D);
+cond = cellfun(@(x) x.cond, D);
+morph_level = cellfun(@(x) x.morph_level, D);
+color_level = cellfun(@(x) x.color_level, D);
+coh = nan(size(cond)); coh(cond==1) = morph_level(cond==1); coh(cond==2) = color_level(cond==2);resp = cellfun(@(x) x.resp, D);
+
+clear opt
+% select data
+opt.session_list = 1:max(session);
+% process data
+opt.constant = false;
+opt.verbose = false;
+% plot
+opt.average = false; % do not average across learning sessions
+
+[~, fh_idv, fh_summary, stat] = run_choice_2cond(cond, coh, resp, session, opt);
+fh_all = plot_in_one_fig_choice_2cond(fh_idv, [5 5], [500 500]*1.5);
+save(fullfile(InterimDir, sprintf('choice_%s_%s.mat', monkey, experiment)), 'stat')
+print(fh_summary, '-dpdf', fullfile(FigDir, sprintf('choice_summary_%s_%s.pdf', monkey, experiment)));
+print(fh_all, '-dpdf', fullfile(FigDir, sprintf('choice_%s_%s.pdf', monkey, experiment)));
+
 %% PSTH (face task)
 DETREND = false;
 for n = 1:n_files
@@ -114,6 +191,8 @@ end
 %% PCA (face task)
 for n = 1:n_files
     fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
+    fnd = load('Y:\FaceSwitch_Monkey\Nick\20250905\Nick20250905_01_FND_sorted.mat').fnd;
+    fnd = fnd.extract_epoch(2);
 
     % get ID
     task_set = fnd.getp('task_set');
@@ -122,7 +201,8 @@ for n = 1:n_files
     targ_cho = fnd.getp('targ_cho');
     targ_cor = fnd.getp('targ_cor');
 
-    trc = trial_classifier('plus_cat', 1, 'include_0coh', true);
+    % trc = trial_classifier('plus_cat', 1, 'include_0coh', true);
+    trc = trial_classifier('stim_group', {[0 12], [12 24], [24 40], [40 60], [60 Inf]}, 'plus_cat', 1, 'include_0coh', true);
     [ID, mean_coh] = trc.stim_choice(morph_level, targ_cho, targ_cor); % correct trials only
     ID(task_set~=1) = NaN; % one task only
     trial_classifier_result(ID, {'morph_level', 'targ_cor', 'targ_cho', 'task_set'}, {morph_level, targ_cor, targ_cho, task_set});
@@ -130,7 +210,7 @@ for n = 1:n_files
     % plot PCA
     clear opt
     opt.plot = set_plot_opt('vik', max(ID(:)));
-    opt.epoch = 2;
+    opt.epoch = 1;
     opt.PC_range = [250 600];
     opt.PSTH_conv = {'boxcar', 100};
     opt.PC_kernel = {'bartlett', 200};
@@ -143,6 +223,7 @@ end
 %% PCA (color task)
 for n = 1:n_files
     fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
+    fnd = fnd.extract_epoch(2);
 
     % get ID
     task_set = fnd.getp('task_set');
@@ -151,7 +232,8 @@ for n = 1:n_files
     targ_cho = fnd.getp('targ_cho');
     targ_cor = fnd.getp('targ_cor');
 
-    trc = trial_classifier('plus_cat', 1, 'include_0coh', true);
+    % trc = trial_classifier('plus_cat', 1, 'include_0coh', true);
+    trc = trial_classifier('stim_group', {[0 12], [12 24], [24 40], [40 60], [60 Inf]}, 'plus_cat', 1, 'include_0coh', true);
     [ID, mean_coh] = trc.stim_choice(color_level, targ_cho, targ_cor); % correct trials only
     ID(task_set~=2) = NaN; % one task only
     trial_classifier_result(ID, {'color_level', 'targ_cor', 'targ_cho', 'task_set'}, {color_level, targ_cor, targ_cho, task_set});
@@ -159,7 +241,7 @@ for n = 1:n_files
     % plot PCA
     clear opt
     opt.plot = set_plot_opt('vik', max(ID(:)));
-    opt.epoch = 2;
+    opt.epoch = 1;
     opt.PC_range = [250 600];
     opt.PSTH_conv = {'boxcar', 100};
     opt.PC_kernel = {'bartlett', 200};
@@ -177,6 +259,7 @@ end
 
 for n = 1:n_files
     fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
+    fnd = fnd.extract_epoch(2);
 
     % get ID
     task_set = fnd.getp('task_set');
@@ -193,7 +276,7 @@ for n = 1:n_files
     % plot PCA
     clear opt
     opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
-    opt.epoch = 2;
+    opt.epoch = 1;
     opt.PC_range = [250 600];
     opt.PSTH_conv = {'boxcar', 100};
     opt.PC_kernel = {'bartlett', 200};
