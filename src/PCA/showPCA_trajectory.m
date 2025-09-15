@@ -9,6 +9,7 @@ def.dim = [1 2 3];
 def.PSTH_conv = {'boxcar', 100};
 def.PC_kernel = {'bartlett', 200};
 def.interp_method = {'polyfit',3};
+def.dash_line_3d = false;
 
 def.xlim = [];
 def.ylim = [];
@@ -145,9 +146,22 @@ uicontrol(gcf, 'style', 'text', 'string', 'Click dot to show time and manifold',
 
 function show_trj
     for c1=1:ncond
-        h = plot3(score(:,c1, 1), score(:,c1, 2), score(:,c1, 3), ...
-            'color', plt.color(c1,:), 'linestyle', plt.linestyle{c1}, 'linew', plt.linewidth(c1));
-        set(h, 'hittest', 'off');
+        if opt.dash_line_3d && strcmp(plt.linestyle{c1}, '--')
+            warning('A wierd way to plot dashed line in 3d space.')
+            hold on
+            for i = 1:size(score,1)-1
+                if mod(i, 16) == 1 % plot solid line
+                    plot3(score(i:i+8,c1, 1), score(i:i+8,c1, 2), score(i:i+8,c1, 3), ...
+                        'color', plt.color(c1,:), 'linestyle', '-', 'linew', plt.linewidth(c1));
+                else
+                    % do not plot solid line. The gap makes it a dashed line.
+                end
+            end
+        else
+            h = plot3(score(:,c1, 1), score(:,c1, 2), score(:,c1, 3), ...
+                'color', plt.color(c1,:), 'linestyle', plt.linestyle{c1}, 'linew', plt.linewidth(c1));
+            set(h, 'hittest', 'off');
+        end
         trjh = [trjh; h]; %#ok<AGROW>
         for m1=1:length(opt.anchor_t)
             ti = find(T == opt.anchor_t(m1));

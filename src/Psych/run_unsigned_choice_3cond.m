@@ -13,6 +13,8 @@ def.color = [0 0 0; 1 0 0; 0 1 0];
 def.linewidth = [0.5, 0.5, 0.5];
 def.average = true;
 def.legend = {'Cond 1', 'Cond 2'};
+% quick summary plot
+def.normalize_threshold = false;
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -42,6 +44,7 @@ function fh_summary = show_quick_summary(stat, opt)
 
 def.color = [0 0 0; 1 0 0; 0 1 0];
 def.linewidth = [0.5, 0.5, 0.5];
+def.normalize_threshold = false;
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -67,8 +70,9 @@ plot(acc2, '.-', 'markers', 7, 'Color', opt.color(2,:), 'LineWidth', opt.linewid
 plot(acc3, '.-', 'markers', 7, 'Color', opt.color(3,:), 'LineWidth', opt.linewidth(3));
 format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Accuracy (%)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
 subplot(1,2,2); hold on
+if opt.normalize_threshold; thres_for_plot = thres./(thres(:,1)); else; thres_for_plot = thres; end
 for c = 1:ncond
-    plot(thres(:,c), '.-', 'markers', 7, 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
+    plot(thres_for_plot(:,c), '.-', 'markers', 7, 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
 end
 format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Threshold (% Morph)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
 
@@ -245,6 +249,7 @@ format_panel(gca, ...
     'xlim', opt.xlim, 'xtick', opt.xtick, 'xticklabel', opt.xticklabel, ...
     'xlabel', {'Stimulus strength','(% Morph)'}, 'ylabel', 'P(correct)');
 if ~isempty(opt.session_list); title(['session', num2str(opt.session_list(opt.session_idx))]); end
+plot(xlim, [0.816 0.816], ':', 'Color', [.5 .5 .5])
 
 % stat
 stat = struct('ucoh', ucoh, 'lucoh', lucoh, 'ncond', ncond, 'p', p, ... % plot data

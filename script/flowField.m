@@ -6,10 +6,11 @@ FigDir = fullfile(MainFigDir, 'flowField'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'flowField'); mkdir(InterimDir);
 
 %% check raw PCA
-TASK_ID = 1;
+TASK_ID = 2;
 VERBOSE = false;
 PREPROCESS_FND = true;
 
+figure('Position', [500 100 850 900]);
 for n = 1:n_files
     n
     % load file
@@ -30,6 +31,7 @@ for n = 1:n_files
 
         % select trial
         fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
+        fnd = fnd.extract_trial(fnd.getp('task_set')==TASK_ID);
 
         if TASK_ID==2
             if strcmp(monkey, 'Nick') && strcmp(experiment, 'learnTask2') && any(n==[1 2 3 4 5])
@@ -41,84 +43,29 @@ for n = 1:n_files
             elseif strcmp(monkey, 'Nick') && strcmp(experiment, 'learnTask2') && any(n==[11 12 13 14 15])
                 fnd = fnd.extract_trial(abs(fnd.getp('morph_level'))*100>=6);
             end
-
-            if strcmp(monkey, 'Woody')
-                fnd = fnd.extract_trial(abs(fnd.getp('morph_level'))*100>=18);
-            end
         end
     end
 
-    % get ID
+    % get ID and PSTH
     task_set = fnd.getp('task_set');
     morph_level = fnd.getp('morph_level')*100;
     targ_cho = fnd.getp('targ_cho');
     targ_cor = fnd.getp('targ_cor');
 
-    trc = trial_classifier('stim_group', {[0 Inf]}, 'plus_cat', 1, 'include_0coh', false);
+    trc = trial_classifier('stim_group', {[0 18], [18 32], [32 60], [60 80], [80 Inf]}, 'plus_cat', 1, 'include_0coh', false);
     [ID, mean_coh] = trc.stim_choice(morph_level, targ_cho, targ_cor); % correct trials only
     ID(task_set~=TASK_ID) = NaN; % one task only
     trial_classifier_result(ID, {'morph_level', 'targ_cor', 'targ_cho', 'task_set'}, {morph_level, targ_cor, targ_cho, task_set});
 
-    % calculate PCA
+    % get dPC axes
+    psth = fnd.PSTH(ID, {'gaussian', 20}); psth = psth{1}; % (unit, time, cond)
     [nunit, ntime, ntrial] = size(fnd.data{1});
     ncond = max(ID(:));
-    psth = fnd.PSTH(ID, {'boxcar', 100}, [], true); psth = psth{1}; % (unit, time, cond)
 
-    [coeff, score, latent] = pca(psth(:,:)'); % psth(:,:) ..(observation, unit)
-    score = reshape(score', nunit, ntime, ncond);
+    target = {{'Choice', 1}, {'Choice', 2}}; % target is stimulus dimension 1 and choice dimension 1
+    coef = load(fullfile(MainInterimDir, 'dPCA_pair-choice', sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, n))).data;
 
-    % plot each PC
-    opt.plot = set_plot_opt('roma', ncond);
-    fh = figure('Position', [50 200 600 270]); hold on
-    for pc_idx = 1:6
-        subplot(2,3,pc_idx); hold on
-        for c = 1:ncond
-            plot(fnd.tstamp{1}, score(pc_idx,:,c), 'Color', opt.plot.color(c,:))
-        end
-        title(sprintf('PC %d', pc_idx))
-    end
-    format_panel(gcf, 'xlabel', 'Time (ms)', 'ylabel', 'Score', 'axis', 'normal', ...
-        'xlim', [fnd.tstamp{1}(1), fnd.tstamp{1}(end)])
-    print(fh, '-dpdf', fullfile(FigDir, sprintf('raw_PCA_choice_pair%d_%s_%s_session%d.pdf', TASK_ID, monkey, experiment, n)));
-
-    % plot in 2D space
-    % opt.plot = set_plot_opt('vik', ncond);
-    % figure; hold on
-    % for c = 1:ncond
-    %     plot(score(1,:,c), score(2,:,c), 'Color', opt.plot.color(c,:))
-    % end
-end
-
-
-%% flow field (task 1 or 2, dPCA) 我觉得噪声更大了
-TASK_ID = 1;
-VERBOSE = false;
-PREPROCESS_FND = true;
-
-fh_idv = cell(n_files, 1);
-for n = 1:1
-    % load file
-    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
-
-    if PREPROCESS_FND
-        % remove low FR units
-        FR = fnd.FR({2, [100 400]}); % (unit, trial)
-        I = nanmean(FR, 2)>=1; % mean FR should >= 1 Hz
-        fnd = fnd.set_unit_criteria('custom', I);
-        fprintf('%d low FR units are removed.\n', sum(~I))
-
-        % remove units changed over time
-        % I = ~isnan(fnd.misc.SNR);
-        % fnd = fnd.set_unit_criteria('custom', I);
-        % fprintf('%d units changed over time.\n', sum(~I))
-
-        % select trial
-        fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
-    end
-
-    % get dPC axis to plot
-    coef = load(fullfile(InterimDir, sprintf('dPCA_result_session%d.mat', n))).data;
-    target = {{'Choice', 1}, {'Choice', 2}, {'Task', 1}};
+    psth = bsxfun(@rdivide, bsxfun(@minus, psth, coef.MU), coef.SIGMA);
 
     ntarg = length(target);
     tdim = nan(ntarg, 1); % [choice axis 1, choice axis 2, task axis 1]
@@ -132,10 +79,86 @@ for n = 1:1
     end
 
     W = coef.W; % (unit, dim)
-    coef_decision_2D = W(:,tdim(1:2)); % (unit, 2pc)
-    coef_task_1D = W(:,tdim(3)); % (unit, 1pc)
+    coef_decision_2D = W(:,tdim([1 2])); % (unit, 2pc)
 
-    detPSTH = fnd.PSTH([], {'boxcar', 100}, [], [], 2); detPSTH = detPSTH{2};
+    % project to dPC
+    score = coef_decision_2D' * psth(:,:);
+    score = reshape(score, 2, ntime, []);
+
+    opt.plot = set_plot_opt('vik', ncond);
+    subplot(4,4,n); hold on
+    for c = 1:ncond
+        plot(score(1,:,c), score(2,:,c), 'Color', opt.plot.color(c,:));
+    end
+    format_panel(gcf, 'xlabel', 'dPC1', 'ylabel', 'dPC2');
+    title(sprintf('session %d', n))
+
+    % get PC axes
+    % psth = fnd.PSTH(ID, {'gaussian', 20}, [], true); psth = psth{1}; % (unit, time, cond)
+    % [nunit, ntime, ntrial] = size(fnd.data{1});
+    % ncond = max(ID(:));
+    % 
+    % [coeff, score, latent] = pca(psth(:,:)'); % psth(:,:) ..(observation, unit)
+    % score = reshape(score', nunit, ntime, ncond);
+    % 
+    % opt.plot = set_plot_opt('vik', ncond);
+    % subplot(4,4,n); hold on
+    % for c = 1:ncond
+    %     plot(score(1,:,c), score(2,:,c), 'Color', opt.plot.color(c,:));
+    % end
+    % format_panel(gcf, 'xlabel', 'PC1', 'ylabel', 'PC2');
+    % title(sprintf('session %d', n))
+end
+
+
+%% flow field (task 1 or 2, dPCA) 我觉得噪声更大了
+TASK_ID = 1;
+VERBOSE = false;
+PREPROCESS_FND = true;
+
+fh_idv = cell(n_files, 1);
+for n = 1:n_files
+    % load file
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    if PREPROCESS_FND
+        % remove low FR units
+        FR = fnd.FR({1, [100 500]}); % (unit, trial)
+        I = nanmean(FR, 2)>=1; % mean FR should >= 1 Hz
+        fnd = fnd.set_unit_criteria('custom', I);
+        fprintf('%d low FR units are removed.\n', sum(~I))
+
+        % remove units changed over time
+        % I = ~isnan(fnd.misc.SNR);
+        % fnd = fnd.set_unit_criteria('custom', I);
+        % fprintf('%d units changed over time.\n', sum(~I))
+
+        % select trial
+        fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
+        fnd = fnd.extract_trial(fnd.getp('task_set')==TASK_ID);
+    end
+
+    % get dPC axis to plot
+    coef = load(fullfile(MainInterimDir, 'dPCA_pair-choice', sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, n))).data;
+    target = {{'Choice', 1}, {'Choice', 2}}; % actually coh 1 and choice 1
+
+    ntarg = length(target);
+    tdim = nan(ntarg, 1); % [choice axis 1, choice axis 2, task axis 1]
+    for t = 1:ntarg
+        I = find(strcmp(target{t}{1}, coef.margNames));
+        if isempty(I)
+            error('No such dimension: %s', target{t}{1});
+        end
+        tmpdim = find(coef.whichMarg == I, target{t}{2});
+        tdim(t) = tmpdim(end);
+    end
+
+    W = coef.W; % (unit, dim)
+    coef_decision_2D = W(:,tdim([1 2])); % (unit, 2pc)
+    % coef_task_1D = W(:,tdim(3)); % (unit, 1pc)
+
+    % detPSTH = fnd.PSTH([], {'boxcar', 100}, [], [], 2); detPSTH = detPSTH{2};
 
     % get ID
     task_set = fnd.getp('task_set');
@@ -148,31 +171,30 @@ for n = 1:1
     % calculate flow field
     clear opt;
     opt.PC_coef = coef_decision_2D;
-    opt.detPSTH = detPSTH;
+    opt.detPSTH = coef.MU;
     opt.dim = [1 2];
     opt.conv_kernel = fspecial('gaussian', [1 20*6], 20);
     opt.bin_num = 20;
-    opt.ndim = 2;
 
-    data = calc_flow_field(fnd.tstamp{2}, fnd.raster{2}, ID, opt);
+    data = calc_flow_field(fnd.tstamp{1}, fnd.raster{1}, ID, opt);
 
     % show flow field (PC 1-2)
     clear pltopt;
-    pltopt.min_sample = 1000;
+    pltopt.min_sample = size(fnd.data{1}, 3);
     pltopt.trj_color = [
         0.00  0.45  0.74;
         0.85  0.33  0.10];
     pltopt.legend = {'Choice 1', 'Choice 2'};
-    pltopt.xlabel = 'PC 1';
-    pltopt.ylabel = 'PC 2';
+    pltopt.xlabel = 'dPC 1';
+    pltopt.ylabel = 'dPC 2';
     pltopt.title = sprintf('Task %d', TASK_ID);
 
     fh_idv{n} = show_flow_field(data, pltopt);
-    print(fh_idv{n}, '-dpdf', fullfile(FigDir, sprintf('flow_field_PC1-2_pair%d_session%d.pdf', TASK_ID, n)));
+    print(fh_idv{n}, '-dpdf', fullfile(FigDir, sprintf('flow_field_dPC%d-%d_pair%d_%s_%s_session%d.pdf', opt.dim(1), opt.dim(2), TASK_ID, monkey, experiment, n)));
 end
 
 fh_all = plot_in_one_fig_flow_field(fh_idv, [5 3], [300 500*1.2]*2);
-print(fh_all, '-dpdf', fullfile(FigDir, sprintf('flow_field_PC1-2_pair%d.pdf', TASK_ID)));
+print(fh_all, '-dpdf', fullfile(FigDir, sprintf('flow_field_dPC%d-%d_pair%d_%s_%s_summary.pdf', opt.dim(1), opt.dim(2), TASK_ID, monkey, experiment)));
 
 %% flow field (task 1 or 2, PCA)
 TASK_ID = 1;
@@ -199,9 +221,10 @@ for n = 1:n_files
 
         % select trial
         fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
+        fnd = fnd.extract_trial(fnd.getp('task_set')==TASK_ID);
     end
 
-    % get PC space to plot
+    % get PC space
     task_set = fnd.getp('task_set');
     targ_cho = fnd.getp('targ_cho');
     targ_cor = fnd.getp('targ_cor');
@@ -209,14 +232,12 @@ for n = 1:n_files
     ID(task_set~=TASK_ID) = NaN; % one task only
     if VERBOSE; trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set}); end
 
+    data = fnd.PSTH(ID, {'gaussian', 20}); % the kernel is actually {'gaussian', [1 20*6], 20}
+    
     clear opt;
-    opt.plot = set_plot_opt('roma', 2);
-    opt.PC_range = [0 700];
-    opt.conv_kernel = fspecial('average', [1 100]);
     opt.epoch = 1;
-
-    data = fnd.PSTH(ID, {'gaussian', 20});
-    [coef, detPSTH] = getPC_coef(fnd.tstamp, data, opt);
+    opt.PC_range = [250 600];
+    [coef, detPSTH] = getPC_coef(fnd.tstamp, data, opt); % coeff ..(feature, pc); detPSTH ..(unit, time)
 
     % calculate flow field
     clear opt;
@@ -230,7 +251,7 @@ for n = 1:n_files
 
     % show flow field (PC 1-2)
     clear pltopt;
-    pltopt.min_sample = 1000;
+    pltopt.min_sample = size(fnd.data{1}, 3);
     pltopt.trj_color = [
         0.00  0.45  0.74;
         0.85  0.33  0.10];
@@ -238,8 +259,9 @@ for n = 1:n_files
     pltopt.xlabel = 'PC 1';
     pltopt.ylabel = 'PC 2';
     pltopt.title = sprintf('Pair %d', TASK_ID);
-
+    
     fh_idv{n} = show_flow_field(data, pltopt);
+    xlim([-100 100]); ylim([-80 80])
     print(fh_idv{n}, '-dpdf', fullfile(FigDir, sprintf('flow_field_PC%d-%d_pair%d_%s_%s_session%d.pdf', opt.dim(1), opt.dim(2), TASK_ID, monkey, experiment, n)));
 end
 
@@ -400,11 +422,11 @@ elseif p_val<0.05 && rho<0
 end
 
 %% raw flow field
-n = 1;
+for n = 1:n_files
 
 % get axes
-target = {{'Choice', 1}, {'Choice', 2}, {'Task', 1}}; % target is stimulus dimension 1 and choice dimension 1
-coef = load(fullfile(InterimDir, sprintf('dPCA_result_session%d.mat', n))).data;
+target = {{'Choice', 1}, {'Choice', 2}}; % target is stimulus dimension 1 and choice dimension 1
+coef = load(fullfile(MainInterimDir, 'dPCA_pair-choice', sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, n))).data;
 
 ntarg = length(target);
 tdim = nan(ntarg, 1); % [choice axis 1, choice axis 2, task axis 1]
@@ -418,8 +440,8 @@ for t = 1:ntarg
 end
 
 W = coef.W; % (unit, dim)
-coef_decision_2D = W(:,tdim(1:2)); % (unit, 2pc)
-coef_task_1D = W(:,tdim(3)); % (unit, 1pc)
+coef_decision_2D = W(:,tdim([2 1])); % (unit, 2pc)
+% coef_task_1D = W(:,tdim(3)); % (unit, 1pc)
 
 % load fnd
 fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
@@ -435,13 +457,22 @@ fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
 
 % project to pair axis
 FR = fnd.FR({2, [100 500]}); % (unit, trial)
-FR_proj_pair = coef_task_1D' * FR; % (unit, 1)
+FR_proj_pair = coef_task_1D' * FR; % (1, trial)
+
+task_set = fnd.getp('task_set'); task_set = task_set(1,:);
+FR_proj_pair_1 = mean(FR_proj_pair(task_set==1));
+FR_proj_pair_2 = mean(FR_proj_pair(task_set==2));
+if FR_proj_pair_1>=FR_proj_pair_2
+    fprintf('Flip pair axis. Pair 1 should have more negative pair signal.\n')
+    coef_task_1D = -coef_task_1D;
+    FR_proj_pair = coef_task_1D' * FR; % (1, trial)
+end
 
 nbin = 8;
 pair_signal_list = prctile(FR_proj_pair, linspace(0,100,nbin+1));
 
 % reshape
-figure;
+figure('Position', [130 500 1400 110]);
 for b = 1:nbin
     trial_idx = (FR_proj_pair>pair_signal_list(b)) & (FR_proj_pair<=pair_signal_list(b+1));
 
@@ -454,35 +485,69 @@ for b = 1:nbin
     targ_cho = fnd_new.getp('targ_cho');
     targ_cor = fnd_new.getp('targ_cor');
 
-    trc = trial_classifier('stim_group', {[0 20], [20 40], [40 Inf]}, 'plus_cat', 1, 'include_0coh', true);
+    % coh ID
+    trc = trial_classifier('stim_group', {[0 12], [12 24], [24 40], [40 60], [60 Inf]}, 'plus_cat', 1, 'include_0coh', false);
     [ID, mean_coh] = trc.stim_choice(morph_level, targ_cho, targ_cor); % correct trials only
-    % ID(task_set~=1) = NaN; % one task only
     trial_classifier_result(ID, {'morph_level', 'targ_cor', 'targ_cho', 'task_set'}, {morph_level, targ_cor, targ_cho, task_set});
 
-    psth = fnd_new.PSTH(ID, {'boxcar', 100}, [], [], 2); psth = psth{2};
-    psth_mn = squeeze(mean(psth, 1));
-
-    % plot PSTH
-    % opt.plot = set_plot_opt('vik', max(ID(:)));
-    % figure; hold on
-    % for c = 1:max(ID(:))
-    %     plot(psth_mn(:,c), 'Color', opt.plot.color(c,:))
+    % DIY ID
+    % [~, ~, ID] = unique(morph_level(1,:));
+    % ntr = histcounts(ID, 1:max(ID)+1);
+    % for c = 1:max(ID)
+    %     if ntr(c)<3
+    %         ID(ID==c) = NaN;
+    %     end
     % end
+    % ID = repmat(ID', [nunit,1]);
+    % trial_classifier_result(ID, {'coh', 'targ_cor', 'targ_cho'}, {morph_level, targ_cor, targ_cho});
 
     % project to decision space
-    psth_ = psth(:,:);
-    psth_proj_dec = coef_decision_2D' * psth_;
-    psth_proj_dec = reshape(psth_proj_dec, 2, ntime, []);
+    % psth = fnd_new.PSTH(ID, {'boxcar', 100}, [], [], 2); psth = psth{2};
+    % psth_ = psth(:,:);
+    % psth_proj_dec = coef_decision_2D' * psth_;
+    % psth_proj_dec = reshape(psth_proj_dec, 2, ntime, []);
+    % 
+    % opt.plot = set_plot_opt('vik', max(ID(:)));
+    % subplot(1,nbin,b); hold on
+    % for c = 1:max(ID(:))
+    %     plot(psth_proj_dec(1,:,c), psth_proj_dec(2,:,c), 'Color', opt.plot.color(c,:))
+    % end
 
-    % plot projection
+    % PSTH project to PC
+    psth = fnd_new.PSTH(ID, {'boxcar', 100}, [], true, 2); psth = psth{2};
+    [coeff, score, latent] = pca(psth(:,:)'); % psth(:,:) ..(observation, unit); coeff ..(feature, pc)
+    score = reshape(score', nunit, ntime, []);
+
     opt.plot = set_plot_opt('vik', max(ID(:)));
     subplot(1,nbin,b); hold on
     for c = 1:max(ID(:))
-        plot(psth_proj_dec(1,:,c), psth_proj_dec(2,:,c), 'Color', opt.plot.color(c,:))
+        plot(score(1,:,c), score(2,:,c), 'Color', opt.plot.color(c,:))
     end
+    if b==1
+        title('Pair 1')
+    elseif b==nbin
+        title('New Pair')
+    end
+
+    % % raster project to PC
+    % r = fnd_new.raster(2); r = r{1}*1000; % (unit, time, trial)
+    % r_mn = mean(r,3);
+    % r_detrend = r - r_mn;
+    % 
+    % score = coeff * r(:,:);
+    % score = reshape(score', nunit, ntime, []);
+    % 
+    % for c = 1:size(score,3)
+    %     plot(score(1,:,c), score(2,:,c))
+    % end
+    % if b==1
+    %     title('Pair 1')
+    % elseif b==nbin
+    %     title('New Pair')
+    % end
 end
+format_panel(gcf, 'xlim', [-60 60], 'ylim', [-60 60], 'axis', 'normal')
 
-
-
+end
 
 

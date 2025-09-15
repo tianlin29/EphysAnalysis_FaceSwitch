@@ -5,6 +5,40 @@ experiment = 'learnTask2';
 FigDir = fullfile(MainFigDir, 'PSTH'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'PSTH'); mkdir(InterimDir);
 
+%% block design
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+task_set = fnd.getp('task_set'); task_set = task_set(1,:);
+fh = figure;
+h = imagesc(task_set, [1 2]);
+map = [0 0 0;
+    44 145 224]/255;
+colormap(map)
+set(h, 'AlphaData', 0.4*(ones(size(task_set))));
+format_panel(gcf, 'axis', 'normal', 'fig_size', [120 50], ...
+    'xlim', [0 length(task_set)], 'xtick', 0:200:1200, 'xlabel', '#Trial');
+yticks([])
+print(fh, '-dpdf', fullfile(FigDir, sprintf('block_design_%s_%s_session%d.pdf', monkey, experiment, n)));
+
+%% save raster for RNN fitting
+fnd = load(get_file_path(monkey, experiment, 1, 'FND_sorted')).fnd;
+
+% select unit
+r = fnd.FR({2, [100 500]});
+I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
+fnd = fnd.set_unit_criteria('custom', I);
+
+% select trial
+fnd = fnd.extract_trial(fnd.getp('task_set')==1); % one task only
+fnd = fnd.extract_trial(fnd.getp('targ_cor')==fnd.getp('targ_cho'));
+
+raster = fnd.raster(2); raster = raster{1}; % (unit, time, trial)
+save('D:\Engine_D2\latent_dynamics\raster.mat', 'raster');
+
+targ_cho = fnd.getp('targ_cho'); targ_cho = targ_cho(1,:);
+save('D:\Engine_D2\latent_dynamics\targ_cho.mat', 'targ_cho');
+
+
 %% PSTH (coh)
 TASK_ID = 1;
 DETREND = true;

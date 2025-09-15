@@ -186,118 +186,139 @@ set(gca, 'LineWidth', 0.5)
 xtickangle(0)
 print(fh, '-dpdf', fullfile(FigDir, 'PCA_stimID.pdf'));
 
-%% predict FR from face pc
+%% predict FR from face pc (TBU)
 %        stim_cat targ_cor stim_id
 % human  2        1        1-20
 % monkey 1        2        21-40
 
 % face pc
 pcscore_human = load(fullfile(MainInterimDir, experiment, 'pcscore_human.mat')).pcscore_human; % (20 faces, 50 face pc)
-nfeature = 2;
-pcscore_human = pcscore_human(:, [1 26]); % (20 faces, face pc)
+pcscore_human = pcscore_human(:, [1 2 3 26 27 28]); % (20 faces, face pc)
 
 % FR
-fnd = load(get_file_path(monkey, experiment, 1, 'FND_sorted')).fnd;
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
 fnd = fnd.extract_trial(fnd.getp('stim_cat')==2);
 r = fnd.FR({1, [50 400]});
 I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
 fnd = fnd.set_unit_criteria('custom', I);
 
 [nunit, ntime, ntrial] = size(fnd.data{1});
-stim_id = fnd.getp('stim_id'); stim_id = stim_id(1,:)'; % (trial, 1)
-FR = fnd.FR({1, [50 400]})'; % (trial, unit) = (observation, feature)
+condID = fnd.getp('stim_id');
+psth = fnd.PSTH(condID, {'boxcar', 100}); psth = psth{1};
 
-% prepare data for regression
-X = zeros(ntrial, nfeature);
-for tr = 1:ntrial
-    X(tr,:) = pcscore_human(stim_id(tr),:); % (trial, face pc)
+r = fnd.FR({1, [100 400]}, condID); % (unit, condition)
+FR = fnd.FR({1, [100 400]})'; % (trial, unit) = (observation, feature)
+
+% PCA
+[coeff, score, latent] = pca(psth(:,:)');
+score
+
+
+coeff = pca(r'); % coeff ..(unit, pc)
+dim = 1:6;
+coeff = coeff(:,dim);
+
+% regression
+% coeff (unit, pc) = w * pcscore_human (stim, face pc)
+
+X = pcscore_human(:,1);
+for n = 1:6 % pc
+    y = coeff(:,n);
+    b = regress(y', X');
 end
 
-Y = FR; % (trial, unit)
 
-%
-rng(1);
-nfold = 5;
-cv = cvpartition(ntrial, 'KFold', nfold);
-
-[modelCorr, modelMSE] = deal(zeros(nunit, 1));
-betaCoefs = zeros(nfeature, nunit);
+b = nan(nunit,7);
+stats = nan(nunit,4);
+X = pcscore_human(stim_id,:);
 for u = 1:nunit
-    u
+    y = FR(:,u);
+    [b(u,:),bint,r,rint,stats(u,:)] = regress(y, [ones(size(X,1),1), X]);
+end
 
-    y = Y(:, u);
-    YPredict = zeros(size(y));
-    for f = 1:cv.NumTestSets
-        trainIdx = cv.training(f);
-        testIdx = cv.test(f);
+% plot
+fh = figure('Position', [150 500 300 400]);
+imagesc(b(:,2:end))
+xlabel('face PC'); xticklabels({'1', '2', '3', '26', '27', '28'})
+ylabel('unit')
+colorbar
+print(fh, '-dpdf', fullfile(FigDir, sprintf('regression_%s_%s_session%d.pdf', monkey, experiment, n)));
 
-        XTrain = X(trainIdx, :); % (part of trial, face pc)
-        yTrain = y(trainIdx); % (part of trial, 1)
+%% manifold (face pc) 看不出规律
+pcscore_human = load(fullfile(MainInterimDir, experiment, 'pcscore_human_share_rand40.mat')).pcscore_human; % (stim, face pc)
+pcscore_monkey = load(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_rand40.mat')).pcscore_monkey; % (stim, face pc)
 
-        XTest = X(testIdx, :);
+pcscore_human = pcscore_human(:,1); % pc 1
+pcscore_monkey = pcscore_monkey(:,1);
 
-        % regression
-        mdl = fitrlinear(XTrain, yTrain, 'Learner', 'leastsquares', ... 
-                         'Regularization', 'ridge', ...
-                         'Lambda', 'auto', ...
-                         'Solver', 'sgd');
+for n = 1:n_files
+    % load data
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_epoch(1);
 
-        % predict
-        y_pred = predict(mdl, XTest);
-        YPredict(testIdx) = y_pred;
+    % select unit
+    r = fnd.FR({1, [100 500]});
+    I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
+    fnd = fnd.set_unit_criteria('custom', I);
+
+    % select trial
+    fnd = fnd.extract_trial(fnd.getp('stim_id')<=20); % human face only
+    fnd = fnd.extract_trial(fnd.getp('targ_cor')==fnd.getp('targ_cho')); % correct trials only
+
+    % get ID
+    %        stim_cat targ_cor stim_id
+    % human  2        1        1-20
+    % monkey 1        2        21-40
+    [nunit, ntime, ntrial] = size(fnd.data{1});
+    stim_id = fnd.getp('stim_id'); stim_id = stim_id(1,:);
+    face_pc = nan(1, ntrial);
+    for tr = 1:ntrial
+        if stim_id(tr)<=20
+            face_pc(tr) = pcscore_human(stim_id(tr));
+        else
+            face_pc(tr) = pcscore_monkey(stim_id(tr)-20);
+        end
     end
 
-    % register
-    modelCorr(u) = corr(y, YPredict);
-    modelMSE(u) = mean((y - YPredict).^2);
+    nbin = 10;
+    face_pc_list = prctile(face_pc, linspace(0,100,nbin+1));
+    ID = nan(1, ntrial);
+    for tr = 1:ntrial
+        idx = find(face_pc_list>=face_pc(tr));
+        ID(tr) = idx(1);
+    end
+    mean_coh = nan(1, nbin);
+    for b = 1:nbin
+        mean_coh(b) = mean(face_pc(ID==b));
+    end
+    ID = repmat(ID, [nunit, 1]);
 
+    stim_cat = fnd.getp('stim_cat');
+    targ_cho = fnd.getp('targ_cho');
+    targ_cor = fnd.getp('targ_cor');
+    trial_classifier_result(ID, {'stim_cat', 'targ_cor', 'targ_cho'}, {stim_cat, targ_cor, targ_cho});
+
+    % plot manifold
+    data = fnd.PSTH(ID, {'boxcar', 100});
+
+    opt.mean_coh = mean_coh;
+    opt.plot = set_plot_opt('vik', max(ID(:)));
+    opt.PC_range = [250 600];
+    opt.Time = [100 200 300 400 500 600];
+    opt.epoch = 1;
+
+    opt.roughness = 5e-4;
+    opt.dim_sign = [1 -1 1];
+    opt.dim = [3 1 2];
+    opt.view = [-145 34];
+    fh = showPCA(fnd.tstamp, data, opt);
+
+    % change format
+    format_panel(gcf, 'fig_size', [1270 250])
+    a = get(gca,'XTickLabel'); set(gca,'XTickLabel',a,'fontsize',6)
+    h = get(gca,'xlabel'); set(h, 'FontSize', 7); h = get(gca,'ylabel'); set(h, 'FontSize', 7); h = get(gca,'zlabel'); set(h, 'FontSize', 7);
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('manifold_facePC_%s_%s_session%d.pdf', monkey, experiment, n)));
 end
-
-% stat
-meanCorr = mean(modelCorr);
-meanMSE = mean(modelMSE);
-
-fprintf('Average correlation between predicted and actual firing rate: %.4f\n', meanCorr);
-fprintf('Average mean squared error: %.4f\n', meanMSE);
-
-% stat 2
-significantUnits = sum(modelCorr > 0.1);
-fprintf('%d out of %d units (%.2f%%) were significantly encoded by the face space.\n', ...
-        significantUnits, nunit, (significantUnits/nunit)*100);
-
-% stat 3
-figure;
-subplot(1,2,1);
-histogram(modelCorr, 20);
-xlabel('Prediction Correlation');
-ylabel('Number of Units');
-title('Distribution of Encoding Model Performance');
-xline(0.1, 'r--', 'LineWidth', 2); % 添加参考线
-
-subplot(1,2,2);
-boxplot(modelCorr);
-ylabel('Prediction Correlation');
-title('Performance Across Units');
-
-% stat 4
-% 选一个表现好（或不好）的神经元来可视化
-[~, exampleUnit] = max(modelCorr); 
-
-figure;
-plot(y, YPredict, 'k.');
-xlabel('Actual Firing Rate');
-ylabel('Predicted Firing Rate');
-title(sprintf('Unit %d: Corr = %.3f', exampleUnit, modelCorr(exampleUnit)));
-lsline; % 添加拟合线
-
-
-B = nan(nfeature+1, nunit); % (face pc, unit)
-for u = 1:nunit
-    [b, ~, ~, ~, stats] = regress(r(:,u), [ones(20,1), main_pc]); % (20 faces, u) = (20 faces, 19 face pc + 1) * (19 face pc + 1, u)
-    B(:,u) = b(1:end);
-end
-
-r_pred = [ones(20,1), main_pc] * B;
-
 
 

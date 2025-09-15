@@ -3,6 +3,7 @@ function fh = show_popresp_dPCA_axis(fname, opt)
 def.conv = [];
 def.plot = set_plot_opt('vik', 10);
 def.format = [];
+def.less_timepoint = false;
 opt = safeStructAssign(def, opt);
 
 S = load(fname);
@@ -30,7 +31,14 @@ ax = nan(ndim,1);
 ymx = 0;
 for d=1:ndim
     subplot(1,ndim,d);
-    ax(d) = plot_multiepoch_trace({tstamp}, {squeeze(dpc(d,:,:))'}, [], opt);
+    t = tstamp;
+    x = squeeze(dpc(d,:,:))';
+    if opt.less_timepoint
+        t_idx = round(linspace(1, length(t), 50));
+        t = t(t_idx);
+        x = x(:,t_idx);
+    end
+    ax(d) = plot_multiepoch_trace({t}, {x}, [], opt);
     ymx = max(ymx, max(abs(ylim)));
     title(sprintf('%s: dim %d', data.target{d}{1}, data.target{d}{2}));
 end

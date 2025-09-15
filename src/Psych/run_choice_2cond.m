@@ -31,7 +31,10 @@ end
 fh = show_choice_2cond_average(stat, opt);
 
 % show quick summary across sessions
-fh_summary = show_quick_summary(stat, opt);
+fh_summary = [];
+if length(opt.session_list)>1
+    fh_summary = show_quick_summary(stat, opt);
+end
 
 end
 
@@ -48,22 +51,22 @@ end
 
 ntrial1 = cellfun(@(x) x.ntrial1, stat(:));
 ntrial2 = cellfun(@(x) x.ntrial2, stat(:));
-acc1 = cellfun(@(x) round(x.acc1*100), stat(:));
-acc2 = cellfun(@(x) round(x.acc2*100), stat(:));
+% acc1 = cellfun(@(x) round(x.acc1*100), stat(:));
+% acc2 = cellfun(@(x) round(x.acc2*100), stat(:));
 thres1 = cellfun(@(x) round(x.thres1*100), stat(:)); thres1(thres1>=100 | thres1<0) = NaN;
 thres2 = cellfun(@(x) round(x.thres2*100), stat(:)); thres2(thres2>=100 | thres2<0) = NaN;
-tbl = table(ntrial1, ntrial2, acc1, acc2, thres1, thres2);
-disp(tbl)
+% tbl = table(ntrial1, ntrial2, acc1, acc2, thres1, thres2);
+% disp(tbl)
 
 fh_summary = figure('pos', [50+240 300 300 120]);
 subplot(1,2,1); hold on
-plot(acc1, '.-', 'markers', 7, 'Color', opt.color(1,:));
-plot(acc2, '.-', 'markers', 7, 'Color', opt.color(2,:));
-format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Accuracy (%)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
+% plot(acc1, '.-', 'markers', 7, 'Color', opt.color(1,:));
+% plot(acc2, '.-', 'markers', 7, 'Color', opt.color(2,:));
+% format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Accuracy (%)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
 subplot(1,2,2); hold on
 plot(thres1, '.-', 'markers', 7, 'Color', opt.color(1,:));
 plot(thres2, '.-', 'markers', 7, 'Color', opt.color(2,:));
-format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Threshold (% Morph)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
+format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Threshold (% Morph)', 'xlim', [0.5 length(thres1)+0.5], 'xtick', 1:length(stat))
 
 end
 
@@ -192,16 +195,12 @@ format_panel(gca, ...
 if ~isempty(opt.session_list); title(['session', num2str(opt.session_list(opt.session_idx))]); end
 
 % stat
-cor = nan(size(resp));
-cor((coh<0 & resp==1) | (coh>0 & resp==2)) = true;
-cor((coh<0 & resp==2) | (coh>0 & resp==1)) = false;
-
 stat = struct('ucoh', ucoh, 'p1', p1, 'p2', p2, ... % plot data
     'fcoh', fcoh, 'fresp1', fresp1, 'fresp2', fresp2, ... % plot fit result
     'alpha', alpha(:), 'stat_glmfit', stat_glmfit, ...
     'thres1', thres1, 'thres2', thres2, ...
     'ntrial1', sum(cond==1), 'ntrial2', sum(cond==2), ... % trial number for quick summary
-    'acc1', nanmean(cor(cond==1)), 'acc2', nanmean(cor(cond==2)), ... % accuracy for quick summary
+    'acc1', [], 'acc2', [], ... % accuracy for quick summary
     'lapse1', 1-p1(end), 'lapse2', 1-p2(end)); % lapse rate for quick summary
 
 end

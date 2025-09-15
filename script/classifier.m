@@ -1,6 +1,6 @@
 run('../Initialize.m');
-monkey = 'Woody';
-experiment = 'learnTask3';
+monkey = 'Nick';
+experiment = 'learnTask2';
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'classifier'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'classifier'); mkdir(InterimDir);
@@ -16,7 +16,7 @@ for n = 1:n_files
     clear opt;
     opt.epoch = 1;
     opt.glm_type = 'lasso';
-    opt.tstamp = {400};
+    opt.tstamp = {200};
     opt.t_win = 200;
 
     % get ID
@@ -101,11 +101,11 @@ opt.verbose = false;
 % plot
 switch experiment
     case 'learnTask2'
-        opt.color = [99 97 172; 254 160 64; 254 160 64]/255;
+        opt.color = [0 0 0; 44 145 224; 44 145 224]/255;
     case 'learnTask3'
-        opt.color = [99 97 172; 242 128 128; 242 128 128]/255;
+        opt.color = [0 0 0; 58 191 153; 58 191 153]/255;
     case 'learnTask4'
-        opt.color = [99 97 172; 178 34 34; 178 34 34]/255;
+        opt.color = [0 0 0; 240 169 58; 240 169 58]/255;
 end
 opt.linewidth = [0.5, 0.5, 1.5];
 opt.average = false; % do not average across learning sessions
@@ -115,11 +115,16 @@ fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [3 5], [500 300]*1.5);
 print(fh_summary, '-dpdf', fullfile(FigDir, sprintf('neural_threshold_%s_%s.pdf', monkey, experiment)));
 print(fh_all, '-dpdf', fullfile(FigDir, sprintf('unsigned_neural_psychometric_func_%s_%s.pdf', monkey, experiment)));
 
-%% plot everything together
+%% [poster] decoding accuracy of an example session
+fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [2 3], [300 200]*1.2);
+% set(gca, 'Position', [0.1300    0.6546    0.2134    0.2681])
+print(fh_all, '-dpdf', fullfile(FigDir, sprintf('unsigned_neural_psychometric_func_example_session_%s_%s.pdf', monkey, experiment)));
+
+%% [poster] plot everything together
 monkey_list = {'Nick', 'Woody'};
 experiment_list = {'learnTask2', 'learnTask3', 'learnTask4'};
 
-fh_summary = cell(3, 2); % {experiment, monkey}
+fh_summary = cell(2, 3); % {monkey, experiment}
 for exp_id = 1:length(experiment_list)
     for monkey_id = 1:length(monkey_list)
         monkey = monkey_list{monkey_id};
@@ -179,21 +184,23 @@ for exp_id = 1:length(experiment_list)
         % plot
         switch experiment
             case 'learnTask2'
-                opt.color = [99 97 172; 254 160 64; 254 160 64]/255;
+                opt.color = [0 0 0; 44 145 224; 44 145 224]/255;
             case 'learnTask3'
-                opt.color = [99 97 172; 242 128 128; 242 128 128]/255;
+                opt.color = [0 0 0; 58 191 153; 58 191 153]/255;
             case 'learnTask4'
-                opt.color = [99 97 172; 178 34 34; 178 34 34]/255;
+                opt.color = [0 0 0; 240 169 58; 240 169 58]/255;
         end
         opt.linewidth = [0.5, 0.5, 1.5];
         opt.average = false; % do not average across learning sessions
+        % quick summary plot
+        opt.normalize_threshold = true;
 
-        [~, ~, fh_summary{exp_id, monkey_id}, ~] = run_unsigned_choice_3cond(task_set, morph_level, correct, session, opt);
+        [~, ~, fh_summary{monkey_id, exp_id}, ~] = run_unsigned_choice_3cond(task_set, morph_level, correct, session, opt);
     end
 end
 
-fh_all = plot_in_one_fig_neural_threshold(fh_summary, [3 2], [200 300]*1.5);
-print(fh_all, '-dpdf', fullfile(FigDir, 'neural_threshold.pdf'));
+fh_all = plot_in_one_fig_neural_threshold(fh_summary, [2 3], [300 200]*1.2, opt.normalize_threshold);
+print(fh_all, '-dpdf', fullfile(FigDir, 'neural_threshold_linear_classifier.pdf'));
 
 
 
