@@ -1,24 +1,9 @@
 run('../Initialize.m');
-monkey = 'Nick';
-experiment = 'learnTask2';
+monkey = 'Nick'; % Nick, Woody
+experiment = 'learnTask2'; % learnTask2, learnTask3, learnTask4
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'PSTH'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'PSTH'); mkdir(InterimDir);
-
-%% block design
-n = 1;
-fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
-task_set = fnd.getp('task_set'); task_set = task_set(1,:);
-fh = figure;
-h = imagesc(task_set, [1 2]);
-map = [0 0 0;
-    44 145 224]/255;
-colormap(map)
-set(h, 'AlphaData', 0.4*(ones(size(task_set))));
-format_panel(gcf, 'axis', 'normal', 'fig_size', [120 50], ...
-    'xlim', [0 length(task_set)], 'xtick', 0:200:1200, 'xlabel', '#Trial');
-yticks([])
-print(fh, '-dpdf', fullfile(FigDir, sprintf('block_design_%s_%s_session%d.pdf', monkey, experiment, n)));
 
 %% save raster for RNN fitting
 fnd = load(get_file_path(monkey, experiment, 1, 'FND_sorted')).fnd;

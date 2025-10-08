@@ -30,8 +30,7 @@ date = get_date(D);
 [block_type, block_type_processed] = get_block_type(D); % block type: 1 ..task 1, 2 ..task 2, 3 ..switch; block_type_processed: 1 ..single, 2 ..switch
 cond = cellfun(@(x) x.curr_task_set, D);
 [cond_switch, n_after_switch, n_after_nonswitch] = get_cond_switch(D); % 1 ..non-switch, 2 ..switch
-morph_level = cellfun(@(x) x.morph_level(1), D);
-color_level = cellfun(@(x) x.color_level(1), D);
+[coh, morph_level, color_level] = get_coh(D);
 fluc = cellfun(@(x) x.stim_morphvals'*2-1, D, 'uni', 0); % make sure column is time
 stim_dur = cellfun(@(x) x.stim_dur, D);
 stim_size = cellfun(@(x) x.stim_aperture(3), D);
@@ -60,7 +59,7 @@ end
 % save data
 [trial_data, check] = save_trial_data(subj, date, D, valid, ...
     trial_id, session_id, block_id, ...
-    morph_level, color_level, stim_size, stim_set, ...
+    coh, morph_level, color_level, stim_size, stim_set, ...
     rt, stim_dur, ...
     targ_cor, resp, result, ...
     block_type, block_type_processed, cond, cond_switch, n_after_switch, n_after_nonswitch, ...
@@ -74,7 +73,7 @@ end
 %% additional functions
 function [trial_data, check] = save_trial_data(subj, date, D, valid, ...
     trial_id, session_id, block_id, ...
-    morph_level, color_level, stim_size, stim_set, ...
+    coh, morph_level, color_level, stim_size, stim_set, ...
     rt, stim_dur, ...
     targ_cor, resp, result, ...
     block_type, block_type_processed, cond, cond_switch, n_after_switch, n_after_nonswitch, ...
@@ -90,6 +89,7 @@ for k = 1:length(D)
     trial_data{k}.session_id = session_id(k);
     trial_data{k}.block_id = block_id(k);
     % coherence
+    trial_data{k}.coh = coh(k);
     trial_data{k}.morph_level = morph_level(k);
     trial_data{k}.color_level = color_level(k);
     trial_data{k}.stim_size = stim_size(k);
@@ -155,6 +155,19 @@ flip_target2 = cellfun(@(x) strcmp(x.flip_target2, 'true'), D);
 resp = cellfun(@(x) x.response, D);
 resp(cond==1 & flip_target1) = 3 - resp(cond==1 & flip_target1);
 resp(cond==2 & flip_target2) = 3 - resp(cond==2 & flip_target2);
+
+end
+
+
+function [coh, morph_level, color_level] = get_coh(D)
+
+cond = cellfun(@(x) x.curr_task_set, D);
+morph_level = cellfun(@(x) x.morph_level(1), D);
+color_level = cellfun(@(x) x.color_level(1), D);
+
+coh = nan(size(cond));
+coh(cond==1) = morph_level(cond==1);
+coh(cond==2) = color_level(cond==2);
 
 end
 

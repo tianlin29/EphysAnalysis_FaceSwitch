@@ -1,12 +1,36 @@
 run('../Initialize.m');
-monkey = 'Nick';
-experiment = 'learnTask2';
+monkey = 'Nick'; % Nick, Woody
+experiment = 'faceColor'; % learnTask2, learnTask3, learnTask4, faceColor
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'choice'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'choice'); mkdir(InterimDir);
 
 %%
 D = combineTrialData(fullfile(PreprocDir, sprintf('%s_%s.mat', monkey, experiment)));
+
+%% block design
+session = cellfun(@(x) x.session_id, D);
+cond = cellfun(@(x) x.cond, D);
+fh = figure;
+for n = 1:max(session)
+    subplot(5,5,n); hold on
+    cond_ = cond(session==n)';
+    h = imagesc(cond_, [1 2]);
+    switch experiment
+        case {'learnTask2', 'faceColor'}
+            map = [0 0 0; 44 145 224]/255;
+        case 'learnTask3'
+            map = [0 0 0; 58 191 153]/255;
+        case 'learnTask4'
+            map = [0 0 0; 240 169 58]/255;
+    end
+    colormap(map)
+    set(h, 'AlphaData', 0.4*(ones(size(cond_))));
+    title(sprintf('session %d', n))
+end
+format_panel(fh, 'axis', 'normal', ...
+    'xtick', 0:200:1000, 'xlabel', '#Trial');
+print(fh, '-dpdf', fullfile(FigDir, sprintf('block_design_%s_%s.pdf', monkey, experiment)));
 
 %% unsigned choice
 session = cellfun(@(x) x.session_id, D);
@@ -25,7 +49,7 @@ opt.constant = false;
 opt.verbose = false;
 % plot
 switch experiment
-    case 'learnTask2'
+    case {'learnTask2', 'faceColor'}
         opt.color = [0 0 0; 44 145 224; 44 145 224]/255;
     case 'learnTask3'
         opt.color = [0 0 0; 58 191 153; 58 191 153]/255;
@@ -35,7 +59,7 @@ end
 opt.average = false; % do not average across learning sessions
 
 [~, fh_idv, fh_summary, stat] = run_unsigned_choice_2cond(cond, coh, cor, session, opt);
-fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [3 5], [500 300]*1.5);
+fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [5 5], [500 500]*1.5);
 save(fullfile(InterimDir, sprintf('unsigned_choice_%s_%s.mat', monkey, experiment)), 'stat')
 print(fh_summary, '-dpdf', fullfile(FigDir, sprintf('unsigned_choice_summary_%s_%s.pdf', monkey, experiment)));
 print(fh_all, '-dpdf', fullfile(FigDir, sprintf('unsigned_choice_%s_%s.pdf', monkey, experiment)));
@@ -207,10 +231,58 @@ for monkey_idx = 1:2
     end
 end
 
+%% choice switch cost
+session = cellfun(@(x) x.session_id, D);
+n_after_switch = cellfun(@(x) x.n_after_switch, D);
+cond_switch = nan(size(n_after_switch)); idx = 30;
+cond_switch(n_after_switch>=idx) = 1; cond_switch(n_after_switch<idx) = 2; 
+coh = cellfun(@(x) x.coh, D);
+targ_cor = cellfun(@(x) x.targ_cor, D);
+resp = cellfun(@(x) x.resp, D);
+cor = resp==targ_cor;
 
+clear opt
+% select data
+opt.session_list = 1:n_files;
+% process data
+opt.log = true;
+opt.constant = false;
+opt.verbose = false;
+% plot
+opt.average = false; % do not average across learning sessions
 
+[~, fh_idv, fh_summary, stat] = run_unsigned_choice_2cond(cond_switch, coh, cor, session, opt);
+fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, [5 5], [500 500]*1.5);
+save(fullfile(InterimDir, sprintf('choice_switch_cost_%s_%s.mat', monkey, experiment)), 'stat')
+print(fh_summary, '-dpdf', fullfile(FigDir, sprintf('choice_switch_cost_summary_%s_%s.pdf', monkey, experiment)));
+print(fh_all, '-dpdf', fullfile(FigDir, sprintf('choice_switch_cost_%s_%s.pdf', monkey, experiment)));
 
+%% [test] accuracy vs. switch
+session = cellfun(@(x) x.session_id, D);
+cond = cellfun(@(x) x.cond, D);
+n_after_switch = cellfun(@(x) x.n_after_switch, D);
+targ_cor = cellfun(@(x) x.targ_cor, D);
+resp = cellfun(@(x) x.resp, D);
+cor = resp==targ_cor;
 
+figure;
+for n = 1:max(session)
+    u_n_after_switch = 0:79;
+    I1 = cond==1 & session==n;
+    I2 = cond==2 & session==n;
+    [p1, pse1] = calcGroupMean(cor(I1), n_after_switch(I1), u_n_after_switch, 'binary');
+    [p2, pse2] = calcGroupMean(cor(I2), n_after_switch(I2), u_n_after_switch, 'binary');
+
+    clear opt
+    opt.color = [0 0 0; 1 0 0];
+
+    subplot(5,5,n); hold on
+    plot(u_n_after_switch, p1, '.', 'markers', 7, 'Color', opt.color(1,:));
+    cerrorbar(u_n_after_switch, p1, pse1, 'Color', opt.color(1,:));
+    plot(u_n_after_switch, p2, '.', 'markers', 7, 'Color', opt.color(2,:));
+    cerrorbar(u_n_after_switch, p2, pse2, 'Color', opt.color(2,:));
+    title(sprintf('session %d', n))
+end
 
 
 

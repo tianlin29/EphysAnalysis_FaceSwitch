@@ -8,24 +8,6 @@ InterimDir = fullfile(MainInterimDir, 'faceColor'); mkdir(InterimDir);
 %%
 D = combineTrialData(fullfile(PreprocDir, sprintf('%s_%s.mat', monkey, experiment)));
 
-%% block design
-session = cellfun(@(x) x.session_id, D);
-cond = cellfun(@(x) x.cond, D);
-fh = figure;
-for n = 1:max(session)
-    subplot(5,5,n); hold on
-    cond_ = cond(session==n)';
-    h = imagesc(cond_, [1 2]);
-    map = [0 0 0;
-        44 145 224]/255;
-    colormap(map)
-    set(h, 'AlphaData', 0.4*(ones(size(cond_))));
-    title(sprintf('session %d', n))
-end
-format_panel(fh, 'axis', 'normal', ...
-    'xtick', 0:200:1000, 'xlabel', '#Trial');
-print(fh, '-dpdf', fullfile(FigDir, sprintf('block_design_%s_%s.pdf', monkey, experiment)));
-
 %% unsigned choice
 session = cellfun(@(x) x.session_id, D);
 cond = cellfun(@(x) x.cond, D);
@@ -251,7 +233,7 @@ for n = 1:n_files
     print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_trajectory_color_task_session_%d.pdf', n)));
 end
 
-%% PCA (coh * task)
+%% PCA (coh*task)
 % color level
 % day 1: [96 80]
 % day 2: [96 80 60 40 32 24]
@@ -284,6 +266,54 @@ for n = 1:n_files
     fh = showPCA_trajectory(fnd, ID, opt);
     saveas(fh, fullfile(FigDir, sprintf('PCA_trajectory_task-choice_session_%d.fig', n)));
     print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_trajectory_task-choice_session_%d.pdf', n)));
+end
+
+%% PCA (choice*task)
+for n = 1:n_files
+    % load data
+    fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    % select unit
+    r = fnd.FR({1, [100 500]});
+    I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
+    fnd = fnd.set_unit_criteria('custom', I);
+
+    % select trial
+    fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor')); % correct trials only
+
+    % get ID
+    task_set = fnd.getp('task_set');
+    morph_level = fnd.getp('morph_level')*100;
+    color_level = fnd.getp('color_level')*100;
+    morph_level(task_set==2) = color_level(task_set==2);
+    targ_cho = fnd.getp('targ_cho');
+    targ_cor = fnd.getp('targ_cor');
+
+    ID = task_set;
+    ID(targ_cho==2) = ID(targ_cho==2)+max(ID(:));
+    trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set});
+
+    % plot PCA
+    opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
+    new_color_set = [0 0 0; 1 0 0; 0 0 0; 1 0 0];
+    opt.plot.color = new_color_set;
+    opt.plot.facecolor = new_color_set;
+    opt.plot.edgecolor = new_color_set;
+    opt.plot.markersize = 2*[1; 1; 1; 1];
+    opt.plot.linewidth = 0.5*[1; 1; 1; 1];
+    opt.epoch = 1;
+    opt.PC_range = [250 600];
+    opt.PSTH_conv = {'boxcar', 100};
+    opt.PC_kernel = {'bartlett', 200};
+    opt.dash_line_3d = 1;
+
+    fh = showPCA_trajectory(fnd, ID, opt);
+    view([0 90]) % PC1-2
+    % view([146 13]) % task signal;
+    format_panel(fh, 'fig_size', [150 150]); xtickangle(0) % report format
+    % saveas(fh, fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.fig', monkey, experiment, n)));
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_choice-pair_angle2_%s_%s_session%d.pdf', monkey, experiment, n)));
 end
 
 %% compare two manifolds in a PC space

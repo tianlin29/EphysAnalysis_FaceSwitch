@@ -1,55 +1,62 @@
 run('../Initialize.m');
 addpath(genpath(fullfile(MainDir, 'external', 'dpca_Kobak2016')));
-monkey = 'Nick';
-experiment = 'faceColor';
+monkey = 'Woody'; % Nick, Woody
+experiment = 'learnTask3'; % learnTask2, learnTask3, learnTask4, faceColor
 [~, n_files] = get_file_path(monkey, experiment);
-FigDir = fullfile(MainFigDir, 'dPCA_pair-choice'); mkdir(FigDir);
-InterimDir = fullfile(MainInterimDir, 'dPCA_pair-choice'); mkdir(InterimDir);
+FigDir = fullfile(MainFigDir, 'dPCA', 'pair-choice'); mkdir(FigDir);
+InterimDir = fullfile(MainInterimDir, 'dPCA', 'pair-choice'); mkdir(InterimDir);
 
 %% dPCA
-fh_proj = cell(n_files, 1);
-for n = 1:n_files
-    n
-    fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
-    classifier = 'pair-choice';
-    fh_proj{n} = run_dPCA(fnd, InterimDir, FigDir, classifier, monkey, experiment, n);
-end
-
-[fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [5 5], [500 500]*1.5, [-240 240], [-120 120]);
-print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_task_%s_%s.pdf', monkey, experiment)));
-print(fh_2, '-dpdf', fullfile(FigDir, sprintf('dPCA_choice_%s_%s.pdf', monkey, experiment)));
-
-%% change axis to plot
-fh_proj = cell(n_files, 1);
 for n = 1:n_files
     n
     fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
     classifier = 'pair-choice';
-    fh_proj{n} = show_dPCA_only(fnd, InterimDir, FigDir, classifier, monkey, experiment, n);
+    step = [1 1 1 0]; % regularization, dPCA, projection, plotting
+    run_dPCA(fnd, InterimDir, FigDir, classifier, step, monkey, experiment, n);
 end
 
-[fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [4 4], [400 400]*1.5);
-print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_task_%s_%s.pdf', monkey, experiment)));
+%% plot all sessions
+fh_proj = cell(n_files, 1);
+for n = 1:n_files
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    classifier = 'pair-choice';
+    step = [0 0 0 1]; % regularization, dPCA, projection, plotting
+    fh_proj{n} = run_dPCA(fnd, InterimDir, FigDir, classifier, step, monkey, experiment, n);
+end
+
+[fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [5 5], [500 500]*1.5, [-100 100], [-100 100]);
+print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_pair_%s_%s.pdf', monkey, experiment)));
 print(fh_2, '-dpdf', fullfile(FigDir, sprintf('dPCA_choice_%s_%s.pdf', monkey, experiment)));
 
-%% [poster] plot example sessions
+%% plot example sessions in Woody learnTask3
+monkey = 'Woody'; % Nick, Woody
+experiment = 'learnTask3'; % learnTask2, learnTask3, learnTask4, faceColor
 session_list = [1 6 9];
 fh_proj = cell(length(session_list), 1);
 for n = 1:length(session_list)
     session_id = session_list(n);
     fnd = load(get_file_path(monkey, experiment, session_id, 'FND_sorted')).fnd;
     classifier = 'pair-choice';
-    fh_proj{n} = show_dPCA_only(fnd, InterimDir, FigDir, classifier, monkey, experiment, session_id);
+    step = [0 0 0 1]; % regularization, dPCA, projection, plotting
+    fh_proj{n} = run_dPCA(fnd, InterimDir, FigDir, classifier, step, monkey, experiment, session_id);
 end
 
 [fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [2 3], [300 200]*1.2);
-print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_task_example_session_%s_%s.pdf', monkey, experiment)));
+print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_pair_example_session_%s_%s.pdf', monkey, experiment)));
 
-%% [poster] plot pair/choice signal vs. session
+%% plot magnitude of pair/choice signal vs. session
 monkey_list = {'Nick', 'Woody'};
 experiment_list = {'learnTask2', 'learnTask3', 'learnTask4'};
 
-[task_signal, choice_signal] = deal(cell(2, 3)); % {monkey, experiment}
+[fh_pair, fh_choice] = plot_signal_magnitude(monkey_list, experiment_list, InterimDir);
+print(fh_pair, '-dpdf', fullfile(FigDir, sprintf('pair_signal.pdf')));
+print(fh_choice, '-dpdf', fullfile(FigDir, sprintf('choice_signal.pdf')));
+
+%% pair vs. choice 2d plot
+monkey_list = {'Nick', 'Woody'};
+experiment_list = {'learnTask2', 'learnTask3', 'learnTask4'};
+
+stat = deal(cell(2, 3)); % {monkey, experiment}
 for monkey_id = 1:length(monkey_list)
     for exp_id = 1:length(experiment_list)
         monkey = monkey_list{monkey_id};
@@ -59,9 +66,17 @@ for monkey_id = 1:length(monkey_list)
         end
 
         [~, n_files] = get_file_path(monkey, experiment);
+        stat{monkey_id, exp_id} = cell(1, n_files);
         for session_id = 1:n_files
-            data = load(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
-            dpc = data.dpc; % (dim, time, cond) 2task*2choice
+            fnd = load(get_file_path(monkey, experiment, session_id, 'FND_sorted')).fnd;
+            fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
+            targ_cor = fnd.getp('targ_cor'); targ_cor = targ_cor(1,:);
+            task_set = fnd.getp('task_set'); task_set = task_set(1,:);
+            stat{monkey_id, exp_id}{session_id}(:,3) = targ_cor(:);
+            stat{monkey_id, exp_id}{session_id}(:,4) = task_set(:);
+
+            data = load(fullfile(InterimDir, sprintf('step3_projection_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
+            dpc = data.dpc_trial; % (dim, time, trial) pair+choice
             tstamp = data.tstamp; % (1, time)
 
             % smooth dPC score
@@ -71,162 +86,119 @@ for monkey_id = 1:length(monkey_list)
                 end
             end
 
-            % calculate task signal difference in dPC score
-            dpc_mn = [mean(dpc(1,:,[1 3]), 3)', mean(dpc(1,:,[2 4]), 3)'];
+            % calculate pair signal in dPC score
             I = tstamp>200 & tstamp<600;
-            task_signal{monkey_id, exp_id}(session_id) = abs(mean(dpc_mn(I,1)) - mean(dpc_mn(I,2)));
+            dpc_pair_mn = squeeze(mean(dpc(1,I,:),2));
+            stat{monkey_id, exp_id}{session_id}(:,2) = dpc_pair_mn(:);
 
-            % calculate choice signal difference in dPC score
-            dpc_mn = [mean(dpc(2,:,[1 2]), 3)', mean(dpc(2,:,[3 4]), 3)'];
+            % calculate choice signal in dPC score
             I = tstamp>200 & tstamp<600;
-            choice_signal{monkey_id, exp_id}(session_id) = abs(mean(dpc_mn(I,1)) - mean(dpc_mn(I,2)));
+            dpc_choice_mn = squeeze(mean(dpc(2,I,:),2));
+            stat{monkey_id, exp_id}{session_id}(:,1) = dpc_choice_mn(:);
         end
     end
 end
+save(fullfile(InterimDir, sprintf('pair_vs_choice_2d_plot.mat')), 'stat')
 
-color_list = [44 145 224;
-    58 191 153;
-    240 169 58]/255;
-
-% plot pair signal version 1 (plot 2 monkeys seperately)
-% fh = figure('Position', [50 100 300*1.2 200*1.2]);
-% count = 0;
-% for monkey_id = 1:length(monkey_list)
-%     for exp_id = 1:length(experiment_list)
-%         count = count+1;
-%         if count==4; continue; end
-%         subplot(2,3,count); hold on
-%         nses = length(task_signal{monkey_id, exp_id});
-%         plot(task_signal{monkey_id, exp_id}, '.-', 'Color', color_list(exp_id,:), 'LineWidth', 0.5, 'MarkerSize', 7)
-%         format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Pair signal', ...
-%             'xlim', [0.5 nses+0.5], ...
-%             'xtick', 1:2:nses)
-%         xtickangle(0)
-%     end
-% end
-% axPosition = gca().Position; % 0.7320    0.1307    0.1730    0.3204
-% print(fh, '-dpdf', fullfile(FigDir, sprintf('pair_signal.pdf')));
-
-% plot pair signal version 2 (plot 2 monkeys together)
-fh = figure('Position', [50 100 300*1.2 200*1.2]);
-for exp_id = 1:length(experiment_list)
-    subplot(2,3,exp_id); hold on
-    nses = max([length(task_signal{1, exp_id}), length(task_signal{2, exp_id})]);
-    for monkey_id = 1:length(monkey_list)
-        if exp_id==1 && monkey_id==2; continue; end
-        
-        if monkey_id==1
-            plot(task_signal{monkey_id, exp_id}, '.-', 'Color', color_list(exp_id,:), 'LineWidth', 0.5, 'MarkerSize', 7)
-        else
-            plot(task_signal{monkey_id, exp_id}, '-', 'Color', color_list(exp_id,:), 'LineWidth', 1);
-            scatter(1:length(task_signal{monkey_id, exp_id}), task_signal{monkey_id, exp_id}, 7, 'filled', 'o', ...
-                'MarkerEdgeColor', 'black', 'MarkerFaceColor', color_list(exp_id,:))
-        end
-    end
-    format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Pair signal', ...
-        'xlim', [0.5 nses+0.5], ...
-        'xtick', 1:2:nses, ...
-        'ylim', [10 60])
-    xtickangle(0)
-    title(sprintf('Pair 1 vs. %d', exp_id+1))
-end
-axPosition = gca().Position; % 0.7320    0.1307    0.1730    0.3204
-print(fh, '-dpdf', fullfile(FigDir, sprintf('pair_signal.pdf')));
-
-% plot choice signal
-fh = figure('Position', [50 100 300*1.2 200*1.2]);
-ax = subplot(2,3,6); hold on
 for monkey_id = 1:length(monkey_list)
     for exp_id = 1:length(experiment_list)
-        nses = length(choice_signal{monkey_id, exp_id});
-        if monkey_id==1
-            plot(choice_signal{monkey_id, exp_id}, '.-', 'Color', color_list(exp_id,:), 'LineWidth', 0.5, 'MarkerSize', 7);
-        else
-            plot(choice_signal{monkey_id, exp_id}, '-', 'Color', color_list(exp_id,:), 'LineWidth', 1);
-            scatter(1:nses, choice_signal{monkey_id, exp_id}, 7, 'filled', 'o', ...
-                'MarkerEdgeColor', 'black', 'MarkerFaceColor', color_list(exp_id,:))
+        monkey = monkey_list{monkey_id};
+        experiment = experiment_list{exp_id};
+        if strcmp(monkey, 'Woody') && strcmp(experiment, 'learnTask2')
+            continue;
         end
-    end
-end
-format_panel(fh, 'xlabel', '#Session', 'ylabel', 'Choice signal', ...
-    'xlim', [0.5 15+0.5], ...
-    'xtick', 1:2:15, ...
-    'ylim', [20 120])
-xtickangle(0)
-ax.Position = axPosition;
-print(fh, '-dpdf', fullfile(FigDir, sprintf('choice_signal.pdf')));
 
-%% [poster TBU] compare pair signal between early and late sessions
-for monkey_id = 1:length(monkey_list)
-    monkey = monkey_list{monkey_id};
-    figure('Position', [120 300 300 120]);
-    for exp_id = 1:length(experiment_list)
-        task_signal_ = task_signal{exp_id, monkey_id};
-        nsession = length(task_signal_);
-        half_ses = round(nsession/2);
+        figure('Position', [50 100 600 1000]);
+        [~, n_files] = get_file_path(monkey, experiment);
+        for session_id = 1:n_files
+            subplot(5, 3, session_id); hold on
 
-        category = [ones(1,half_ses), 2*ones(1,nsession-half_ses)];
-        jitter_amount = 0.2;
-        jitter = (rand(size(category)) - 0.5) * jitter_amount;
-        category = category + jitter;
+            I = stat{monkey_id, exp_id}{session_id}(:,3)==1 & stat{monkey_id, exp_id}{session_id}(:,4)==1;
+            scatter(stat{monkey_id, exp_id}{session_id}(I,2), stat{monkey_id, exp_id}{session_id}(I,1), ...
+                8, 'black')
+            I = stat{monkey_id, exp_id}{session_id}(:,3)==1 & stat{monkey_id, exp_id}{session_id}(:,4)==2;
+            scatter(stat{monkey_id, exp_id}{session_id}(I,2), stat{monkey_id, exp_id}{session_id}(I,1), ...
+                8, 'black', 'filled', 'MarkerFaceAlpha', .5)
 
-        subplot(1,3,exp_id); hold on
-        scatter(category, task_signal_, 7, color_list(exp_id,:))
-        if monkey_id==1; format_panel(gca, 'ylim', [10 60], 'axis', 'normal'); end
-        format_panel(gca, 'axis', 'normal', 'xtick', [1 2], 'xticklabel', {'Early', 'Late'}, 'ylabel', 'Pair signal', ...
-            'xlim', [1-0.5 2+0.5])
-        title(sprintf('Pair 1 vs. %d', exp_id+1))
-        xtickangle(0)
-        print(gcf, '-dpdf', fullfile(FigDir, sprintf('scatter_pair_signal_%s.pdf', monkey)));
-    end
-end
-
-%% plot pair/choice signal vs. session in the faceColor task
-monkey = 'Nick';
-experiment = 'faceColor';
-
-[~, n_files] = get_file_path(monkey, experiment);
-[task_signal, choice_signal] = deal(nan(n_files, 1));
-for session_id = 1:n_files
-    data = load(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
-    dpc = data.dpc; % (dim, time, cond) 2task*2choice
-    tstamp = data.tstamp; % (1, time)
-
-    % smooth dPC score
-    for d = 1:size(dpc, 1)
-        for c = 1:size(dpc, 3)
-            dpc(d,:,c) = nanconv(dpc(d,:,c), fspecial('average', [1,100]), 'same');
+            I = stat{monkey_id, exp_id}{session_id}(:,3)==2 & stat{monkey_id, exp_id}{session_id}(:,4)==1;
+            scatter(stat{monkey_id, exp_id}{session_id}(I,2), stat{monkey_id, exp_id}{session_id}(I,1), ...
+                8, 'red')
+            I = stat{monkey_id, exp_id}{session_id}(:,3)==2 & stat{monkey_id, exp_id}{session_id}(:,4)==2;
+            scatter(stat{monkey_id, exp_id}{session_id}(I,2), stat{monkey_id, exp_id}{session_id}(I,1), ...
+                8, 'red', 'filled', 'MarkerFaceAlpha', .5)
+            format_panel(gca, 'xlabel', 'Pair', 'ylabel', 'Choice')
+            if session_id==1
+                title('black: category 1, empty: pair 1')
+            else
+                title(sprintf('session %d', session_id))
+            end
         end
+        print(gcf, '-dpdf', fullfile(FigDir, sprintf('pair_vs_choice_2d_plot_category_%s_%s.pdf', monkey, experiment)));
     end
-
-    % calculate task signal difference in dPC score
-    dpc_mn = [mean(dpc(1,:,[1 3]), 3)', mean(dpc(1,:,[2 4]), 3)'];
-    I = tstamp>200 & tstamp<600;
-    task_signal(session_id) = abs(mean(dpc_mn(I,1)) - mean(dpc_mn(I,2)));
-
-    % calculate choice signal difference in dPC score
-    dpc_mn = [mean(dpc(2,:,[1 2]), 3)', mean(dpc(2,:,[3 4]), 3)'];
-    I = tstamp>200 & tstamp<600;
-    choice_signal(session_id) = abs(mean(dpc_mn(I,1)) - mean(dpc_mn(I,2)));
 end
 
-% plot pair signal
-fh = figure('Position', [50 100 250 150]);
-plot(task_signal, '.-', 'Color', 'black', 'LineWidth', 0.5, 'MarkerSize', 7)
-format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Pair signal', ...
-    'xlim', [0.5 n_files+0.5], ...
-    'xtick', 1:2:n_files)
-xtickangle(0)
-print(fh, '-dpdf', fullfile(FigDir, sprintf('pair_signal_%s_%s.pdf', monkey, experiment)));
+%% plot pair signal of switch vs. non-switch trials (??)
+% get pair signal, cond switch, session (slow)
+session_list = 1:n_files;
+[pair_signal, n_after_switch, session] = deal([]);
+for i = 1:length(session_list)
+    n = session_list(i);
+    n
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
+    n_after_switch_ = fnd.getp('n_after_switch'); n_after_switch_ = n_after_switch_(1,:);
+    task_set_ = fnd.getp('task_set'); task_set_ = task_set_(1,:);
+    targ_cho_ = fnd.getp('targ_cho'); targ_cho_ = targ_cho_(1,:);
 
-% plot choice signal
-fh = figure('Position', [50 100 250 150]);
-plot(choice_signal, '.-', 'Color', 'black', 'LineWidth', 0.5, 'MarkerSize', 7)
-format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Choice signal', ...
-    'xlim', [0.5 n_files+0.5], ...
-    'xtick', 1:2:n_files)
-xtickangle(0)
-print(fh, '-dpdf', fullfile(FigDir, sprintf('choice_signal_%s_%s.pdf', monkey, experiment)));
+    data = load(fullfile(InterimDir, sprintf('step3_projection_%s_%s_session%d.mat', monkey, experiment, n))).data;
+    dpc_trial = data.dpc_trial;
+    pair_signal_ = squeeze(mean(dpc_trial(1,:,:), 2));
+
+    pair_signal = [pair_signal; pair_signal_(:)];
+    n_after_switch = [n_after_switch; n_after_switch_(:)];
+    session = [session; i*ones(size(pair_signal_(:)))];
+end
+save(fullfile(InterimDir, sprintf('pair_signal_vs_switch_%s_%s.mat', monkey, experiment)), 'pair_signal', 'n_after_switch', 'session')
+
+% stat
+load(fullfile(InterimDir, sprintf('pair_signal_vs_switch_%s_%s.mat', monkey, experiment)));
+
+stat = cell(1, n_files);
+for i = 1:length(session_list)
+    I = ~isnan(n_after_switch) & session==i;
+    [pair_signal_mn, pair_signal_se] = calcGroupMean(pair_signal(I), n_after_switch(I), unique(n_after_switch(I)));
+
+    idx = 30;
+    pair_signal_compare = [mean(abs(pair_signal(I&n_after_switch>idx))); mean(abs(pair_signal(I&n_after_switch<=idx)))]; % non-switch vs. switch
+
+    p = run_ttest2(abs(pair_signal(I&n_after_switch>idx))', abs(pair_signal(I&n_after_switch<=idx))', '=');
+
+    stat{i}.pair_signal_mn = pair_signal_mn;
+    stat{i}.pair_signal_se = pair_signal_se;
+    stat{i}.u_n_after_switch = unique(n_after_switch(I));
+    stat{i}.pair_signal_compare = pair_signal_compare;
+    stat{i}.p = p;
+end
+
+% plot
+pair_signal_compare = cellfun(@(x) x.pair_signal_compare, stat, 'uni', 0);
+pair_signal_compare = cell2mat(pair_signal_compare);
+p = cellfun(@(x) x.p, stat);
+
+figure('Position', [50 100 300 150]);
+b = bar(pair_signal_compare');
+b(1).FaceColor = [0 0 0];
+b(2).FaceColor = [1 0 0];
+for i = 1:length(p)
+    if p(i)<0.05
+        text(i, max(pair_signal_compare(:))*1.1, '*', 'HorizontalAlignment', 'center', 'FontSize', 6)
+    else
+        text(i, max(pair_signal_compare(:))*1.1, 'ns', 'HorizontalAlignment', 'center', 'FontSize', 6)
+    end
+end
+format_panel(gcf, 'axis', 'normal', ...
+    'xlabel', '#Session', 'ylabel', 'Pair signal', 'ylim', [0 max(pair_signal_compare(:))*1.2])
+print(gcf, '-dpdf', fullfile(FigDir, sprintf('pair_signal_vs_switch_%s_%s.pdf', monkey, experiment)));
 
 %% stat (TBU)
 fprintf('\nSpearman''s rank correlation coefficient:\n')
@@ -306,12 +278,19 @@ fprintf('Sessions with non-significant similarity (i.e., orthogonal) (p>0.05): %
 
 
 
+
+
+
+
 %% functions
-function fh_proj = run_dPCA(fnd, InterimDir, FigDir, classifier, monkey, experiment, session_id)
+function fh_proj = run_dPCA(fnd, InterimDir, FigDir, classifier, step, monkey, experiment, session_id)
 
 %% 1. load data/setup parameters
+% select epoch
+fnd = fnd.extract_epoch(2);
+
 % select unit
-r = fnd.FR({2, [100 500]});
+r = fnd.FR({1, [100 500]});
 I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
 fnd = fnd.set_unit_criteria('custom', I);
 
@@ -329,26 +308,29 @@ switch classifier
         trc = trial_classifier('stim_group', {[0 18], [18 32], [32 60], [60 80], [80 Inf]}, 'plus_cat', 1, 'include_0coh', false);
         ID_dpca = trc.stim_choice(coh, targ_cho, targ_cor); % correct trials only
         trial_classifier_result(ID_dpca, {'coh', 'task_set', 'targ_cho'}, {coh, task_set, targ_cho});
+        ID = ID_dpca; % classifier for projection
 
-        ID = ID_dpca;
+        param_combination = {{1, [1 3]}, {2, [2 3]}, {3}, {[1 2], [1 2 3]}};
+        param_name = {'Coh', 'Choice', 'Condition-independent', 'S/C Interaction'};
+        target = {{'Coh', 1}, {'Choice', 1}};
 
     case 'pair-choice'
         ID_dpca = task_set; ID_dpca(targ_cho==2) = ID_dpca(targ_cho==2) + max(ID_dpca(:)); % classifier for dPCA
         % trial_classifier_result(ID_dpca, {'coh', 'task_set', 'targ_cho'}, {coh, task_set, targ_cho});
+        ID = ID_dpca; % classifier for projection
 
-        ID = task_set; ID(targ_cho==2) = ID(targ_cho==2) + max(ID(:)); % classifier for projection
-        % trial_classifier_result(ID, {'coh', 'task_set', 'targ_cho'}, {coh, task_set, targ_cho});
+        param_combination = {{1, [1 3]}, {2, [2 3]}, {3}, {[1 2], [1 2 3]}};
+        param_name = {'Pair', 'Choice', 'Condition-independent', 'S/C Interaction'};
+        target = {{'Pair', 1}, {'Choice', 1}};
 end
 
 % options
-param_combination = {{1, [1 3]}, {2, [2 3]}, {3}, {[1 2], [1 2 3]}};
-param_name = {'Task', 'Choice', 'Condition-independent', 'S/C Interaction'};
+regularization = true;
 tbin = 20; % ms
-regularize = true;
-epoch = 2;
+epoch = 1;
 
 %% 2. determine regularization parameter for dPCA
-if regularize
+if step(1) && regularization
     clear opt;
     opt.tbin = tbin; % ms
     opt.t_range = [0 600];
@@ -357,101 +339,61 @@ if regularize
 
     r = fnd.raster_cond(ID_dpca, epoch, 'array'); r = r{1}; % (unit, trial, time, condition)
     [fh, data] = dPCA_optimize_regularization(r, fnd.tstamp{epoch}, opt);
-    print(fh, '-dpdf', fullfile(FigDir, sprintf('optimal_lambda_%s_%s_session%d.pdf', monkey, experiment, session_id)));
-    save(fullfile(InterimDir, sprintf('optimal_lambda_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data')
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('step1_regularization_%s_%s_session%d.pdf', monkey, experiment, session_id)));
+    save(fullfile(InterimDir, sprintf('step1_regularization_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data')
 end
 
 %% 3. run main dPCA
-clear opt;
-opt.detrend = false;
-opt.tbin = tbin;
-opt.t_range = [0 600];
-opt.param_combination = param_combination;
-opt.param_name = param_name;
-opt.show_figure = false;
-if regularize; opt.regularization = load(fullfile(InterimDir, sprintf('optimal_lambda_%s_%s_session%d.mat', monkey, experiment, session_id))).data; end
+if step(2)
+    clear opt;
+    opt.detrend = false;
+    opt.tbin = tbin;
+    opt.t_range = [0 600];
+    opt.param_combination = param_combination;
+    opt.param_name = param_name;
+    opt.show_figure = false;
+    if regularization; opt.regularization = load(fullfile(InterimDir, sprintf('step1_regularization_%s_%s_session%d.mat', monkey, experiment, session_id))).data; end
 
-r = fnd.raster_cond(ID_dpca, epoch, 'array'); r = r{1}; % (unit, trial, time, condition)
-[fh, data] = dPCA_stim_choice(r, fnd.tstamp{epoch}, opt);
-if ~isnan(fh); saveas(fh, fullfile(FigDir, sprintf('dPCA_%s_%s_session%d.pdf', monkey, experiment, session_id)), 'fig'); end
-save(fullfile(InterimDir, sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
-
-%% 4. compute neural data along dPCA axes
-clear opt;
-opt.epoch = 2;
-opt.target = {{'Task', 1}, {'Choice', 1}}; % target is stimulus dimension 1 and choice dimension 1
-opt.coefficient_data = load(fullfile(InterimDir, sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
-
-data = gen_popresp_dPCA_axis(fnd, ID, opt);
-data.cutoff = [find(fnd.tstamp{opt.epoch}==0), find(fnd.tstamp{opt.epoch}==600)];
-save(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
-
-%% 5. show neural data along dPCA axes
-clear opt;
-opt.conv = fspecial('average', [1, 100]); % 100 ms boxcar
-opt.plot = set_plot_opt_2cond('roma', 'roma', max(ID(:))/2);
-
-fh_proj = show_popresp_dPCA_axis(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id)), opt);
-format_panel(fh_proj, 'ylim', [-55 55])
-print(fh_proj, '-dpdf', fullfile(FigDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.pdf', monkey, experiment, session_id)));
-
-end
-
-
-
-function fh_proj = show_dPCA_only(fnd, InterimDir, FigDir, classifier, monkey, experiment, session_id)
-
-%% 1. load data/setup parameters
-% select unit
-r = fnd.FR({2, [100 500]});
-I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
-fnd = fnd.set_unit_criteria('custom', I);
-
-% select trial
-fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
-
-% classifier
-coh = fnd.getp('morph_level')*100;
-targ_cho = fnd.getp('targ_cho');
-targ_cor = fnd.getp('targ_cor');
-task_set = fnd.getp('task_set');
-
-switch classifier
-    case 'coh-choice'
-        trc = trial_classifier('stim_group', {[0 18], [18 32], [32 60], [60 80], [80 Inf]}, 'plus_cat', 1, 'include_0coh', false);
-        ID_dpca = trc.stim_choice(coh, targ_cho, targ_cor); % correct trials only
-        trial_classifier_result(ID_dpca, {'coh', 'task_set', 'targ_cho'}, {coh, task_set, targ_cho});
-
-        ID = ID_dpca;
-
-    case 'pair-choice'
-        ID_dpca = task_set; ID_dpca(targ_cho==2) = ID_dpca(targ_cho==2) + max(ID_dpca(:)); % classifier for dPCA
-        % trial_classifier_result(ID_dpca, {'coh', 'task_set', 'targ_cho'}, {coh, task_set, targ_cho});
-
-        ID = task_set; ID(targ_cho==2) = ID(targ_cho==2) + max(ID(:)); % classifier for projection
-        % trial_classifier_result(ID, {'coh', 'task_set', 'targ_cho'}, {coh, task_set, targ_cho});
+    r = fnd.raster_cond(ID_dpca, epoch, 'array'); r = r{1}; % (unit, trial, time, condition)
+    [fh, data] = dPCA_stim_choice(r, fnd.tstamp{epoch}, opt);
+    if ~isempty(fh); saveas(fh, fullfile(FigDir, sprintf('step2_dPCA_%s_%s_session%d.fig', monkey, experiment, session_id)), 'fig'); end
+    save(fullfile(InterimDir, sprintf('step2_dPCA_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
 end
 
 %% 4. compute neural data along dPCA axes
-clear opt;
-opt.epoch = 2;
-opt.target = {{'Task', 1}, {'Choice', 1}}; % target is stimulus dimension 1 and choice dimension 1
-opt.coefficient_data = load(fullfile(InterimDir, sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
+if step(3)
+    clear opt;
+    opt.epoch = epoch;
+    opt.target = target;
+    opt.coefficient_data = load(fullfile(InterimDir, sprintf('step2_dPCA_%s_%s_session%d.mat', monkey, experiment, session_id))).data;
 
-data = gen_popresp_dPCA_axis(fnd, ID, opt);
-data.cutoff = [find(fnd.tstamp{opt.epoch}==0), find(fnd.tstamp{opt.epoch}==600)];
-save(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
+    data = gen_popresp_dPCA_axis(fnd, ID, opt);
+    data.cutoff = [find(fnd.tstamp{opt.epoch}==0), find(fnd.tstamp{opt.epoch}==600)];
+    save(fullfile(InterimDir, sprintf('step3_projection_%s_%s_session%d.mat', monkey, experiment, session_id)), 'data');
+end
 
 %% 5. show neural data along dPCA axes
-clear opt;
-opt.conv = fspecial('average', [1, 100]); % 100 ms boxcar
-opt.plot = set_plot_opt_2cond('roma', 'roma', max(ID(:))/2);
-new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
-opt.plot.color = new_color_set;
-opt.less_timepoint = 1;
+fh_proj = [];
+if step(4)
+    clear opt;
+    opt.conv = fspecial('average', [1, 100]); % 100 ms boxcar
+    opt.plot = set_plot_opt_2cond('roma', 'roma', max(ID(:))/2);
+    switch experiment
+        case 'learnTask2'
+            opt.plot.color = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+        case 'learnTask3'
+            opt.plot.color = [0 0 0; 58 191 153; 0 0 0; 58 191 153]/255;
+        case 'learnTask4'
+            opt.plot.color = [0 0 0; 240 169 58; 0 0 0; 240 169 58]/255;
+        case 'faceColor'
+            opt.plot.color = [0 0 0; 1 0 0; 0 0 0; 1 0 0];
+    end
 
-fh_proj = show_popresp_dPCA_axis(fullfile(InterimDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.mat', monkey, experiment, session_id)), opt);
-format_panel(fh_proj, 'ylim', [-55 55])
-print(fh_proj, '-dpdf', fullfile(FigDir, sprintf('popresp_dPCA_axis_%s_%s_session%d.pdf', monkey, experiment, session_id)));
+    fh_proj = show_popresp_dPCA_axis(fullfile(InterimDir, sprintf('step3_projection_%s_%s_session%d.mat', monkey, experiment, session_id)), opt);
+    format_panel(fh_proj, 'ylim', [-55 55])
+    print(fh_proj, '-dpdf', fullfile(FigDir, sprintf('step3_projection_%s_%s_session%d.pdf', monkey, experiment, session_id)));
+end
 
 end
+
+

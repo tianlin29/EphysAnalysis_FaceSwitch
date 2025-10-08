@@ -90,7 +90,7 @@ else
     explVar = opt.coefficient_data.explVar;
 end
 
-fh = nan;
+fh = [];
 if opt.show_figure
     margColours = [23 100 171; 187 20 25; 150 150 150; 114 97 171]/256;
     dpca_plot(firingRatesAverage, W, V, @dpca_plot_custom, ...

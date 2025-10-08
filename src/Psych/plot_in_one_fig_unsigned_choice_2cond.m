@@ -1,4 +1,8 @@
-function fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, layout, figsize)
+function fh_all = plot_in_one_fig_unsigned_choice_2cond(fh_idv, layout, figsize, session_id)
+
+if nargin<4
+    session_id = 1:length(fh_idv);
+end
 
 if nargin<3
     figsize = [300 300];
@@ -19,7 +23,7 @@ for i = 1:nax
     new_ax = subplot(layout(1),layout(2),i);
     copyobj(old_ax.Children, new_ax);
 
-    title(['session ', num2str(i)])
+    title(['session ', num2str(session_id(i))])
     xtickangle(0)
 end
 format_panel(gcf, ...

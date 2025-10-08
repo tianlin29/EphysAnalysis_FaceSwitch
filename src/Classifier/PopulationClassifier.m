@@ -14,6 +14,7 @@ def.refBeta = [];
 def.standardize_spike = false;
 def.balance_trial = true; % balance number of trials for two categories
 def.save_trial_param = true;
+def.if_faceColor_task = false;
 opt = safeStructAssign(def, opt);
 
 %% check data
@@ -64,8 +65,13 @@ nunit = size(fnd.data{1}, 1);
 if opt.save_trial_param
     morph_level = fnd.getp('morph_level');
     task_set = fnd.getp('task_set');
+    targ_cor = fnd.getp('targ_cor');
+    targ_cho = fnd.getp('targ_cho');
+
     param.morph_level = morph_level(1, ~I_invalid_trial)';
     param.task_set = task_set(1, ~I_invalid_trial)';
+    param.targ_cor = targ_cor(1, ~I_invalid_trial)';
+    param.targ_cho = targ_cho(1, ~I_invalid_trial)';
 end
 
 for e = 1:nepoch

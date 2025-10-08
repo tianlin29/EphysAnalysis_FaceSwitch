@@ -1,6 +1,6 @@
 run('../Initialize.m');
-monkey = 'Nick';
-experiment = 'learnTask4';
+monkey = 'Nick'; % Nick, Woody
+experiment = 'faceColor'; % learnTask2, learnTask3, learnTask4, faceColor
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'PCA'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'PCA'); mkdir(InterimDir);
@@ -124,6 +124,7 @@ for n = 1:n_files
     trial_classifier_result(ID, {'morph_level', 'targ_cor', 'targ_cho', 'task_set'}, {morph_level, targ_cor, targ_cho, task_set});
 
     % plot PCA
+    clear opt
     opt.plot = set_plot_opt('vik', max(ID(:)));
     opt.plot.markersize = 2*ones(max(ID(:)),1);
     opt.plot.linewidth = 0.5*ones(max(ID(:)),1);
@@ -140,8 +141,9 @@ for n = 1:n_files
 end
 
 %% PCA (choice*pair)
-experiment = 'noCue';
-for n = 1:n_files
+% experiment = 'noCue';
+PLOT_FOR_REPORT = false;
+for n = [1:8, 18:20]
     % load data
     fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
     fnd = fnd.extract_epoch(2);
@@ -156,7 +158,6 @@ for n = 1:n_files
 
     % get ID
     task_set = fnd.getp('task_set');
-    morph_level = fnd.getp('morph_level')*100;
     targ_cho = fnd.getp('targ_cho');
     targ_cor = fnd.getp('targ_cor');
 
@@ -165,26 +166,48 @@ for n = 1:n_files
     trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set});
 
     % plot PCA
+    clear opt
     opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
-    new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+    switch experiment
+        case {'learnTask2', 'faceColor'}
+            new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+        case 'learnTask3'
+            new_color_set = [0 0 0; 58 191 153; 0 0 0; 58 191 153]/255;
+        case 'learnTask4'
+            new_color_set = [0 0 0; 240 169 58; 0 0 0; 240 169 58]/255;
+    end
     opt.plot.color = new_color_set;
     opt.plot.facecolor = new_color_set;
     opt.plot.edgecolor = new_color_set;
-    opt.plot.markersize = 2*[1; 1; 1; 1];
-    opt.plot.linewidth = 0.5*[1; 1; 1; 1];
+    if PLOT_FOR_REPORT
+        opt.plot.markersize = 2*[1; 1; 1; 1];
+        opt.plot.linewidth = 0.5*[1; 1; 1; 1];
+        opt.dash_line_3d = 1;
+    end
     opt.epoch = 1;
     opt.PC_range = [250 600];
     opt.PSTH_conv = {'boxcar', 100};
     opt.PC_kernel = {'bartlett', 200};
-    opt.dash_line_3d = 1;
-
+    
     fh = showPCA_trajectory(fnd, ID, opt);
-    view([0 90]) % PC1-2
+    view([20 45])
+    % view([0 90]) % PC1-2
     % view([146 13]) % task signal;
-    format_panel(fh, 'fig_size', [150 150]); xtickangle(0) % report format
-    % saveas(fh, fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.fig', monkey, experiment, n)));
-    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_choice-pair_angle2_%s_%s_session%d.pdf', monkey, experiment, n)));
+    % format_panel(fh, 'fig_size', [150 150]); xtickangle(0) % report format
+    saveas(fh, fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.fig', monkey, experiment, n)));
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.pdf', monkey, experiment, n)));
 end
+
+%% legend (choice*pair)
+clear opt
+opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
+opt.plot.color = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+
+figure; hold on
+for i = 1:4
+    plot([0 10], [i i], 'Color', opt.plot.color(i,:), 'LineStyle', opt.plot.linestyle{i})
+end
+legend({'choice 1, pair 1', 'choice 1, pair 2', 'choice 2, pair 1', 'choice 2, pair 2'})
 
 %% PCA (coh*pair)
 for n = 1:n_files
@@ -233,6 +256,7 @@ for n = 1:n_files
     end
 
     % plot PCA
+    clear opt
     opt.plot = set_plot_opt('vik', max(ID(:)));
     opt.plot.color = [color_matrix_black; color_matrix_blue];
     opt.plot.facecolor = [color_matrix_black; color_matrix_blue];

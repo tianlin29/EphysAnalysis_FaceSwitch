@@ -17,18 +17,20 @@ coef = opt.coefficient_data;
 
 psth = fnd.PSTH(ID, [], [], [], opt.epoch); % no smoothing
 psth = psth{opt.epoch}; % cell x time x cond
+raster = fnd.raster(opt.epoch); raster = raster{1}*1000; % (unit, time, trial)
 
 if any(coef.exclude_unit)
     psth(coef.exclude_unit,:,:) = [];
+    raster(coef.exclude_unit,:,:) = [];
 end
 
 if opt.detrend
-    trend = nanmean(psth, 3);
-    psth = psth - trend;
+    psth = psth - nanmean(psth, 3);
+    raster = raster - nanmean(psth, 3);
 end
 
 psth = bsxfun(@rdivide, bsxfun(@minus, psth, coef.MU), coef.SIGMA);
-
+raster = bsxfun(@rdivide, bsxfun(@minus, raster, coef.MU), coef.SIGMA);
 
 %% apply dPCA weight
 
@@ -44,14 +46,17 @@ for n=1:ntarg
 end
 
 dpc = nan(ntarg, size(psth,2), size(psth,3));
+dpc_trial = nan(ntarg, size(raster,2), size(raster,3));
 
-for n=1:ntarg
+for n = 1:ntarg
     dpc(n,:) = psth(:,:)' * coef.W(:, tdim(n));
+    dpc_trial(n,:) = raster(:,:)' * coef.W(:, tdim(n));
 end
 
 %% output
 
 data.dpc = dpc;
+data.dpc_trial = dpc_trial;
 data.target = opt.target;
 data.tdim = tdim;
 data.tstamp = fnd.tstamp{opt.epoch};

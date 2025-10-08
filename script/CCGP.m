@@ -1,5 +1,5 @@
 run('../Initialize.m');
-addpath(genpath(fullfile(MainDir, 'external', 'ccgp_courellis2024', 'code', 'helper_functions')));
+addpath(genpath(fullfile(MainDir, 'external', 'ccgp_Courellis2024', 'code', 'helper_functions')));
 monkey = 'Nick';
 experiment = 'learnTask4';
 [~, n_files] = get_file_path(monkey, experiment);
