@@ -5,8 +5,8 @@ def.tstamp = {0:50:450, -250:50:50};
 def.t_win = 100;
 def.min_trial = 10; % min trial for each category
 def.max_nan_rate = .5;
-def.Kfold = 5;
-def.lasso_kFold = 5;
+def.Kfold = 5; % to build training and testing set
+def.lasso_kFold = 5; % to find the best lambda
 def.glm_type = 'ordinary'; % ordinary, lasso
 def.lambda_set = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 1, 10, 100];
 def.sq_rt_spike = false;
@@ -14,7 +14,6 @@ def.refBeta = [];
 def.standardize_spike = false;
 def.balance_trial = true; % balance number of trials for two categories
 def.save_trial_param = true;
-def.if_faceColor_task = false;
 opt = safeStructAssign(def, opt);
 
 %% check data
@@ -92,7 +91,7 @@ for e = 1:nepoch
         if isempty(opt.refBeta)
             data_ind{e}{t} = compute_neural_performance(r_, target, [], opt);
         else
-            data_ind{e}{t} = compute_neural_performance(r_, target, opt.refBeta{e}{1}.ncv.bBeta, opt);
+            data_ind{e}{t} = compute_neural_performance(r_, target, opt.refBeta{e}{t}.ncv.bBeta, opt);
         end
         if isempty(data_ind{e}{t})
             continue;
@@ -166,8 +165,13 @@ if isempty(refBeta)
     LogOdds = nan(length(target),1);
 
     for f = 1:opt.Kfold
-        I_train = idx_CV~=f & ~isnan(idx_CV);
-        I_test = idx_CV==f;
+        if opt.Kfold==1 % no CV
+            I_train = ~isnan(idx_CV);
+            I_test = I_train;
+        else
+            I_train = idx_CV~=f & ~isnan(idx_CV);
+            I_test = idx_CV==f;
+        end
 
         switch opt.glm_type
             case 'lasso'

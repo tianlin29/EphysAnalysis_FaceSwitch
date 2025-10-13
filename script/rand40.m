@@ -49,6 +49,106 @@ end
 save(fullfile(MainInterimDir, experiment, 'pcscore_human_share_pari1to5.mat'), 'pcscore_human');
 save(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_pari1to5.mat'), 'pcscore_monkey');
 
+%% [RNN] randomly generalized RNN coordinates
+sigma = 1;
+a = normrnd(0, sigma, [1 10]);
+
+cat1 = nan(10,4);
+for n = 1:4
+    cat1(:,n) = normrnd(a, sigma);
+end
+
+cat2 = nan(10,4);
+for n = 1:4
+    cat2(:,n) = normrnd(-a, sigma);
+end
+
+cat1 = cat1*4;
+cat2 = cat2*4;
+
+% mean
+figure('Position', [50 100 200 200]); hold on
+plot(a, 'LineWidth', 1, 'Color', 'red')
+plot(-a, 'LineWidth', 1, 'Color', 'black')
+format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+
+% 4 pairs
+figure('Position', [250 100 200 200]); hold on
+plot(cat1, 'LineWidth', 1, 'Color', 'red')
+plot(cat2, 'LineWidth', 1, 'Color', 'black')
+format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+
+pc = [cat1, cat2]'; % (stim, dimension)
+save('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\generated_pc\four_pairs.mat', 'pc')
+
+%% [RNN] randomly generalized RNN coordinates
+sigma = 1;
+a = nan(4,10);
+for n = 1:4
+    a(n,:) = normrnd(0, sigma, [1 10]);
+end
+
+cat1 = nan(10,4);
+for n = 1:4
+    cat1(:,n) = normrnd(a(n,:), sigma);
+end
+
+cat2 = nan(10,4);
+for n = 1:4
+    cat2(:,n) = normrnd(-a(n,:), sigma);
+end
+
+cat1 = cat1*4;
+cat2 = cat2*4;
+
+% mean
+figure('Position', [50 100 600 200]);
+for n = 1:4
+    subplot(1,4,n); hold on
+    plot(a(n,:), 'LineWidth', 1, 'Color', 'red')
+    plot(-a(n,:), 'LineWidth', 1, 'Color', 'black')
+end
+format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+
+% 4 pairs
+figure('Position', [250 100 200 200]); hold on
+plot(cat1, 'LineWidth', 1, 'Color', 'red')
+plot(cat2, 'LineWidth', 1, 'Color', 'black')
+format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+
+pc = [cat1, cat2]'; % (stim, dimension)
+save('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\generated_pc\four_pairs_ungeneralizable.mat', 'pc')
+
+%% [RNN] randomly generalized RNN coordinates
+dim = 10;
+num_vectors = 4;
+cat1 = create_orthogonal_vectors(dim, num_vectors) * 3;
+cat2 = -cat1;
+
+% plot mean
+figure('Position', [50 100 600 200]);
+for n = 1:4
+    subplot(1,4,n); hold on
+    plot(cat1(:,n), 'LineWidth', 1, 'Color', 'red')
+    plot(cat2(:,n), 'LineWidth', 1, 'Color', 'black')
+end
+format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+
+% plot 4 pairs
+figure('Position', [250 100 200 200]); hold on
+plot(cat1, 'LineWidth', 1, 'Color', 'red')
+plot(cat2, 'LineWidth', 1, 'Color', 'black')
+format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+
+% check orthogonality
+dot_product = dot(cat1(:,1), cat1(:,4));
+fprintf('dot product: %.10f\n', dot_product);
+
+% save
+pc = [cat1, cat2]'; % (stim, dimension)
+save('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\generated_pc\four_pairs_ungeneralizable_orth.mat', 'pc')
+
+
 %% training parameters
 % Trial structure is similar to the main task. Only stimulus set was
 % changed to randomFace40. All stimuli were prototypes.

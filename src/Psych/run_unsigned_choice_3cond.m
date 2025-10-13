@@ -24,9 +24,10 @@ end
 % plot individual subject
 nsubj = length(opt.session_list);
 [stat, fh_idv] = deal(cell(1, nsubj));
+fprintf('remove %d trials with NaN in cor.\n', sum(isnan(cor)))
 for s = 1:nsubj
     opt.session_idx = s;
-    I = session==opt.session_list(s);
+    I = session==opt.session_list(s) & ~isnan(cor);
     [stat{s}, fh_idv{s}] = show_unsigned_choice_3cond(cond(I), coh(I), cor(I), opt);
 end
 

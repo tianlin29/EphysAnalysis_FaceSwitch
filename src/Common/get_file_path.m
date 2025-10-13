@@ -55,7 +55,11 @@ n_files = length(session_list.(experiment));
 if nargin<3 % no need to load file
     file_path = [];
 else % load file
-    file_name = sprintf('%s%s_%02d_%s.mat', monkey, session_list.(experiment){session}, subsession, suffix);
+    if contains(suffix, '.')
+        file_name = sprintf('%s%s_%02d_%s', monkey, session_list.(experiment){session}, subsession, suffix);
+    else
+        file_name = sprintf('%s%s_%02d_%s.mat', monkey, session_list.(experiment){session}, subsession, suffix);
+    end
     file_path = fullfile(FormattedDir, project, monkey, session_list.(experiment){session}, file_name);
 end
 
