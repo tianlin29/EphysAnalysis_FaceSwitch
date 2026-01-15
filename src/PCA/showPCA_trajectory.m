@@ -17,15 +17,23 @@ def.zlim = [];
 def.view_angle = [48, 28];
 def.plot = [];
 
+def.PSTH = [];
+def.PSTH_unsmooth = [];
+
 opt = safeStructAssign(def, opt);
 
 ndim = 3;
 
-PSTH = fnd.PSTH(condID, opt.PSTH_conv);
-PSTH = PSTH{opt.epoch};
+if ~isempty(opt.PSTH)
+    PSTH = opt.PSTH;
+    PSTH_unsmooth = opt.PSTH_unsmooth;
+else
+    PSTH = fnd.PSTH(condID, opt.PSTH_conv);
+    PSTH = PSTH{opt.epoch};
 
-PSTH_unsmooth = fnd.PSTH(condID, []);
-PSTH_unsmooth = PSTH_unsmooth{opt.epoch};
+    PSTH_unsmooth = fnd.PSTH(condID, []);
+    PSTH_unsmooth = PSTH_unsmooth{opt.epoch};
+end
 
 Tstamp = fnd.tstamp{opt.epoch};
 

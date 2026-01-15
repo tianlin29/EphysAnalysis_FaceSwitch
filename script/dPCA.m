@@ -1,7 +1,7 @@
 run('../Initialize.m');
 addpath(genpath(fullfile(MainDir, 'external', 'dpca_Kobak2016')));
 monkey = 'Woody'; % Nick, Woody
-experiment = 'learnTask3'; % learnTask2, learnTask3, learnTask4, faceColor
+experiment = 'learnTask3'; % learnTask2, learnTask3, learnTask4, faceColor, passiveLong
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'dPCA', 'pair-choice'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'dPCA', 'pair-choice'); mkdir(InterimDir);
@@ -24,7 +24,7 @@ for n = 1:n_files
     fh_proj{n} = run_dPCA(fnd, InterimDir, FigDir, classifier, step, monkey, experiment, n);
 end
 
-[fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [5 5], [500 500]*1.5, [-100 100], [-100 100]);
+[fh_1, fh_2] = plot_in_one_fig_dPCA(fh_proj, [5 5], [500 500]*1.3, [-40 40], [-100 100]);
 print(fh_1, '-dpdf', fullfile(FigDir, sprintf('dPCA_pair_%s_%s.pdf', monkey, experiment)));
 print(fh_2, '-dpdf', fullfile(FigDir, sprintf('dPCA_choice_%s_%s.pdf', monkey, experiment)));
 
@@ -388,6 +388,7 @@ if step(4)
         case 'faceColor'
             opt.plot.color = [0 0 0; 1 0 0; 0 0 0; 1 0 0];
     end
+    opt.less_timepoint = true;
 
     fh_proj = show_popresp_dPCA_axis(fullfile(InterimDir, sprintf('step3_projection_%s_%s_session%d.mat', monkey, experiment, session_id)), opt);
     format_panel(fh_proj, 'ylim', [-55 55])

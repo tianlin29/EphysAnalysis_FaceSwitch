@@ -5,269 +5,431 @@ experiment = 'rand40';
 FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);
 
-%% [preprocess] coordinates of rand40 in the individual human/monkey face space
-% 一共制作了41张人类面孔和41张猴子面孔，从中随机挑选除了20张人类面孔和20张猴子面孔
-fname = load('C:\Engine\rome_external\PassiveFixationMask\randomFace40\process.mat').fname; % {40,1}
-info_human = load('..\data_face_switch\info\rand40\Passive_fixation_faces_Human.mat').struc; % pcscore, name
-info_monkey = load('..\data_face_switch\info\rand40\Passive_fixation_faces_Monkey.mat').struc;
+%% coordinates of rand40 faces in the shared face space
+% ID of rand40 faces
+fname_face40 = load('C:\Engine\rome_external\PassiveFixationMask\randomFace40\process.mat').fname;
+info_human = load(fullfile(MainDir, 'data\info\rand40\Passive_fixation_faces_Human.mat')).struc; % pcscore, name
+info_monkey = load(fullfile(MainDir, 'data\info\rand40\Passive_fixation_faces_Monkey.mat')).struc;
 
-[pcscore_human, pcscore_monkey] = deal(nan(20, 50)); % (20 stim, 50 dimension)
-for n = 1:20
-    I = strcmp(info_human.name, fname{n});
-    pcscore_human(n,:) = info_human.pcscore{I};
-    I = strcmp(info_monkey.name, fname{n+20});
-    pcscore_monkey(n,:) = info_monkey.pcscore{I};
+% coordinates of 189 faces in the shared face space
+faces_org = load('C:\Engine\FacePCspace\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.faces_org;
+scaling_factor = load('C:\Engine\FacePCspace\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.scaling_factor;
+faces_org = faces_org .* scaling_factor';
+
+% summary
+data = cell(40,5); % [stim id, name in rand40, id in the shared sapce, name in the shared space of 189 faces]
+for i = 1:40
+    data{i,1} = i;
+    data{i,2} = fname_face40{i};
+    if i<=20
+        data{i,3} = info_human.img_idx(strcmp(info_human.name, fname_face40{i}));
+        data{i,4} = sprintf('human%03d.png', data{i,3});
+    else
+        data{i,3} = info_monkey.img_idx(strcmp(info_monkey.name, fname_face40{i})) + 109;
+        data{i,4} = sprintf('monkey%03d.png', data{i,3}-109);
+    end
+    data{i,5} = faces_org(data{i,3}, :);
 end
-save(fullfile(MainInterimDir, experiment, 'pcscore_human.mat'), 'pcscore_human');
-save(fullfile(MainInterimDir, experiment, 'pcscore_monkey.mat'), 'pcscore_monkey');
+save(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat')), 'data')
 
-%% [preprocess] coordinates of rand40 in the shared human-monkey face space
-% 人猴共用空间中共有189张脸（109张人脸和80张猴脸），找到rand40中的40张脸
-fname = load('C:\Engine\rome_external\PassiveFixationMask\randomFace40\process.mat').fname;
-faces_org = load('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.faces_org; % (189 stim, 50 dimension)
+%% coordinates of 4pair+rand40 faces in the shared face space
+% coordinates of 189 faces in the shared face space
+faces_org = load('C:\Engine\FacePCspace\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.faces_org;
+scaling_factor = load('C:\Engine\FacePCspace\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.scaling_factor;
+faces_org = faces_org .* scaling_factor';
 
-[pcscore_human, pcscore_monkey] = deal(nan(20, 50)); % (20 stim, 50 dimension)
-for n = 1:20
-    idx = str2double(fname{n}([6 7])); % e.g., 'human03.bmp' -> 3
-    pcscore_human(n,:) = faces_org(idx,:);
-    idx = str2double(fname{n+20}([7 8]));  % e.g., 'monkey01.bmp' -> 1
-    pcscore_monkey(n,:) = faces_org(idx+109,:);
+% combine 4pair and rand40
+idx_human = [109, 76, 89, 71];
+idx_monkey = [80, 4, 38, 32];
+pc_human_4pair = faces_org(idx_human,:);
+pc_monkey_4pair = faces_org(idx_monkey+109,:);
+
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+pc_human_rand40 = cell2mat(data(1:20,5));
+pc_monkey_rand40 = cell2mat(data(21:end,5));
+
+pc_4pair_rand40 = [pc_human_4pair; pc_human_rand40; pc_monkey_4pair; pc_monkey_rand40];
+
+% MDS
+RSM = corrcoef(pc_4pair_rand40'); % correlation between conditions
+RDM = 1-RSM; % dissimilarity matrix
+MDS_2d = mdscale(RDM, 2, 'Criterion', 'metricstress'); % get the first 2 dims
+
+ImgName_human_4pair = arrayfun(@(x) sprintf('human%03d.png', x), idx_human', 'uni', 0);
+ImgName_monkey_4pair = arrayfun(@(x) sprintf('monkey%03d.png', x), idx_monkey', 'uni', 0);
+ImgName_human_rand40 = data(1:20, 4);
+ImgName_monkey_rand40 = data(21:end, 4);
+ImgName = [ImgName_human_4pair; ImgName_human_rand40; ImgName_monkey_4pair; ImgName_monkey_rand40];
+
+ImgPath_face189 = 'C:\Engine\FacePCspace\human_monkey_face_space\data';
+color_list = [0 0 0; 44 145 224; 58 191 153; 240 169 58]/255;
+fh = figure('Position', [50 100 300 300]); hold on;
+colormap(gray);
+plot_list = [(1:20)+4, (21:40)+4+4, 1:4, 25:28];
+for i = plot_list
+    % load image
+    img = imread(fullfile(ImgPath_face189, ImgName{i}));
+
+    % determine width and height
+    img_width = size(img, 2);
+    img_height = size(img, 1);
+    scale = 0.0006*1.6/2; % 0.0006 for z-scored; 0.000015 for un-z-scored
+    width = img_width * scale;
+    height = img_height * scale;
+
+    % plot image at location
+    if ismember(i, [1 2 3 4 25 26 27 28])
+        rectangle('Position', [MDS_2d(i,1)-width/2, MDS_2d(i,2)-height/2, width, height], 'EdgeColor', color_list(mod(i, 24), :), 'LineWidth', 5);
+    end
+    image([MDS_2d(i,1)-width/2, MDS_2d(i,1)+width/2], [MDS_2d(i,2)-height/2, MDS_2d(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
+
 end
-save(fullfile(MainInterimDir, experiment, 'pcscore_human_share_rand40.mat'), 'pcscore_human');
-save(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_rand40.mat'), 'pcscore_monkey');
+format_panel(fh, 'xlabel', 'Dim 1', 'ylabel', 'Dim 2', 'xlim')
+axis equal
 
-%% [preprocess] coordinates of pair 1 to 5 in the shared human-monkey face space
-faces_org = load('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.faces_org; % (189 stim, 50 dimension)
-idx_human = [109, 76, 89, 71, 2]; % pair 1 to 5
-idx_monkey = [80, 4, 38, 32, 21];
+%% randomize coordinates of 4pair+rand40 faces in the shared face space
+rng(4) % 4
 
-[pcscore_human, pcscore_monkey] = deal(nan(5, 50)); % (5 stim, 50 dimension)
-for n = 1:5
-    pcscore_human(n,:) = faces_org(idx_human(n),:);
-    pcscore_monkey(n,:) = faces_org(idx_monkey(n)+109,:);
-end
-save(fullfile(MainInterimDir, experiment, 'pcscore_human_share_pari1to5.mat'), 'pcscore_human');
-save(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_pari1to5.mat'), 'pcscore_monkey');
+% coordinates of 189 faces in the shared face space
+faces_org = load('C:\Engine\FacePCspace\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.faces_org;
+scaling_factor = load('C:\Engine\FacePCspace\human_monkey_face_space\FaceSwitch_all_faces_PCA.mat').fspace.scaling_factor;
+faces_org = faces_org .* scaling_factor';
 
-%% [RNN] randomly generalized RNN coordinates
-sigma = 1;
-a = normrnd(0, sigma, [1 10]);
+% combine 4pair and rand40
+idx_human = [109, 76, 89, 71];
+idx_monkey = [80, 4, 38, 32];
+pc_human_4pair = faces_org(idx_human,:);
+pc_monkey_4pair = faces_org(idx_monkey+109,:);
 
-cat1 = nan(10,4);
-for n = 1:4
-    cat1(:,n) = normrnd(a, sigma);
-end
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+pc_human_rand40 = cell2mat(data(1:20,5));
+pc_monkey_rand40 = cell2mat(data(21:end,5));
 
-cat2 = nan(10,4);
-for n = 1:4
-    cat2(:,n) = normrnd(-a, sigma);
-end
+pc_4pair_rand40 = [pc_human_4pair; pc_human_rand40; pc_monkey_4pair; pc_monkey_rand40];
 
-cat1 = cat1*4;
-cat2 = cat2*4;
+% plot
+mn = [mean(pc_4pair_rand40(1:24,:)); mean(pc_4pair_rand40(25:end,:))]; se = [std(pc_4pair_rand40(1:24,:)); std(pc_4pair_rand40(25:end,:))];
+figure('Position', [100 100 520 180]); 
+subplot(1,2,1); hold on
+plot(mn(1,:), '.-', 'Color', 'black')
+cerrorbar(1:size(pc_4pair_rand40,2), mn(1,:), se(1,:), 'Color', 'black');
+plot(mn(2,:), '.-', 'Color', 'red')
+cerrorbar(1:size(pc_4pair_rand40,2), mn(2,:), se(2,:), 'Color', 'red');
+plot(xlim, [0 0], ':', 'Color', 'black')
+format_panel(gca, 'xlabel', '#PC', 'ylabel', 'Score', 'xtick', [1 25 50], 'axis', 'normal')
+title('Unnormalized')
 
-% mean
-figure('Position', [50 100 200 200]); hold on
-plot(a, 'LineWidth', 1, 'Color', 'red')
-plot(-a, 'LineWidth', 1, 'Color', 'black')
-format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
+% randomize
+pc_4pair_rand40 = pc_4pair_rand40 * normrnd(0, 2, 50, 50);
 
-% 4 pairs
-figure('Position', [250 100 200 200]); hold on
-plot(cat1, 'LineWidth', 1, 'Color', 'red')
-plot(cat2, 'LineWidth', 1, 'Color', 'black')
-format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
-
-pc = [cat1, cat2]'; % (stim, dimension)
-save('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\generated_pc\four_pairs.mat', 'pc')
-
-%% [RNN] randomly generalized RNN coordinates
-sigma = 1;
-a = nan(4,10);
-for n = 1:4
-    a(n,:) = normrnd(0, sigma, [1 10]);
-end
-
-cat1 = nan(10,4);
-for n = 1:4
-    cat1(:,n) = normrnd(a(n,:), sigma);
-end
-
-cat2 = nan(10,4);
-for n = 1:4
-    cat2(:,n) = normrnd(-a(n,:), sigma);
-end
-
-cat1 = cat1*4;
-cat2 = cat2*4;
-
-% mean
-figure('Position', [50 100 600 200]);
-for n = 1:4
-    subplot(1,4,n); hold on
-    plot(a(n,:), 'LineWidth', 1, 'Color', 'red')
-    plot(-a(n,:), 'LineWidth', 1, 'Color', 'black')
-end
-format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
-
-% 4 pairs
-figure('Position', [250 100 200 200]); hold on
-plot(cat1, 'LineWidth', 1, 'Color', 'red')
-plot(cat2, 'LineWidth', 1, 'Color', 'black')
-format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
-
-pc = [cat1, cat2]'; % (stim, dimension)
-save('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\generated_pc\four_pairs_ungeneralizable.mat', 'pc')
-
-%% [RNN] randomly generalized RNN coordinates
-dim = 10;
-num_vectors = 4;
-cat1 = create_orthogonal_vectors(dim, num_vectors) * 3;
-cat2 = -cat1;
-
-% plot mean
-figure('Position', [50 100 600 200]);
-for n = 1:4
-    subplot(1,4,n); hold on
-    plot(cat1(:,n), 'LineWidth', 1, 'Color', 'red')
-    plot(cat2(:,n), 'LineWidth', 1, 'Color', 'black')
-end
-format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
-
-% plot 4 pairs
-figure('Position', [250 100 200 200]); hold on
-plot(cat1, 'LineWidth', 1, 'Color', 'red')
-plot(cat2, 'LineWidth', 1, 'Color', 'black')
-format_panel(gcf, 'xlabel', 'Dimension', 'ylabel', 'Score')
-
-% check orthogonality
-dot_product = dot(cat1(:,1), cat1(:,4));
-fprintf('dot product: %.10f\n', dot_product);
+% plot
+mn = [mean(pc_4pair_rand40(1:24,:)); mean(pc_4pair_rand40(25:end,:))]; se = [std(pc_4pair_rand40(1:24,:)); std(pc_4pair_rand40(25:end,:))];
+subplot(1,2,2); hold on
+plot(mn(1,:), '.-', 'Color', 'black')
+cerrorbar(1:size(pc_4pair_rand40,2), mn(1,:), se(1,:), 'Color', 'black');
+plot(mn(2,:), '.-', 'Color', 'red')
+cerrorbar(1:size(pc_4pair_rand40,2), mn(2,:), se(2,:), 'Color', 'red');
+plot(xlim, [0 0], ':', 'Color', 'black')
+format_panel(gca, 'xlabel', '#PC', 'ylabel', 'Score', 'xtick', [1 10 25 50], 'axis', 'normal')
+title('Randomize')
 
 % save
-pc = [cat1, cat2]'; % (stim, dimension)
-save('D:\Engine_D2\RNN_modeling\FaceSwitch\data\preproc\generated_pc\four_pairs_ungeneralizable_orth.mat', 'pc')
+pc = pc_4pair_rand40(:,1:10); % (stim, dimension)
+save(fullfile(InterimDir, sprintf('pc_4pair_rand40.mat')), 'pc')
+% save('D:\FaceSwitch\code\RNN_modeling\ContextSwitch\data\preproc\pc_4pair_rand40.mat', 'pc')
 
+%% confirm correlation between face40 and face189
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
 
-%% training parameters
-% Trial structure is similar to the main task. Only stimulus set was
-% changed to randomFace40. All stimuli were prototypes.
+ImgPath_face40 = 'C:\Engine\rome_external\PassiveFixationMask\randomFace40\stim';
+ImgPath_face189 = 'C:\Engine\FacePCspace\human_monkey_face_space\data';
+coordinate = [[1:20,1:20]', [2*ones(20,1); 1*ones(20,1)]];
+struct_data.ImgName_face40 = data(:,2);
+struct_data.ImgName_face189 = data(:,4);
 
-%        stim_cat targ_cor stim_id
-% human  2        1        1-20
-% monkey 1        2        21-40
+for face = {'face40', 'face189'}
+    fh = figure('Position', [50 100 1800 200]); hold on;
+    colormap(gray);
+    for i = 1:40
+        % load image
+        img = imread(fullfile(eval(['ImgPath_', face{1}]), struct_data.(['ImgName_', face{1}]){i}));
 
-fnd = load(get_file_path(monkey, experiment, 1, 'FND_sorted')).fnd;
+        % determine width and height
+        img_width = size(img, 2);
+        img_height = size(img, 1);
+        scale = 0.0006*1.7*3.5; % 0.0006 for z-scored; 0.000015 for un-z-scored
+        width = img_width * scale;
+        height = img_height * scale;
 
-stim_id = fnd.getp('stim_id'); stim_id = stim_id(1,:)'; unique(stim_id); % 40 stim id
-stim_cat = fnd.getp('stim_cat'); stim_cat = stim_cat(1,:)'; unique(stim_cat); % 1 or 2
-tmp = stim_id(stim_cat==1); unique(tmp); % for stim_cat=1, stim_id is 21-40
-targ_cor = fnd.getp('targ_cor'); targ_cor = targ_cor(1,:)'; unique(targ_cor); % 1 or 2, targ_cor is flipped compared to stim_cat
-set_id = fnd.getp('set_id'); set_id = set_id(1,:)'; unique(set_id); % always 2, this variable could be meaningless
-check = table(stim_id, stim_cat, targ_cor); % human is category 2, target 1
+        % plot image at location
+        image([coordinate(i,1)-width/2, coordinate(i,1)+width/2], [coordinate(i,2)-height/2, coordinate(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
+    end
+    axis equal
+    title(face)
+end
 
-%% ** plot human faces in human face space
-% get PC coordinates
-pcscore_human = load(fullfile(MainInterimDir, experiment, 'pcscore_human.mat')).pcscore_human;
-main_pc = pcscore_human(:, [1 26]);
+%% plot images based on 2-d face MDS
+CAT = 'monkey';
 
-% get iamges
-fname = load('C:\Engine\rome_external\PassiveFixationMask\randomFace40\process.mat').fname; % (40 stim, 1)
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+switch CAT
+    case 'human'
+        pc = cell2mat(data(1:20, 5));
+        ImgName = data(1:20, 2);
+    case 'monkey'
+        pc = cell2mat(data(21:end, 5));
+        ImgName = data(21:end, 2);
+end
+
+RSM = corrcoef(pc'); % correlation between conditions
+RDM = 1-RSM; % dissimilarity matrix
+MDS_2d = mdscale(RDM, 2, 'Criterion', 'metricstress'); % get the first 2 dims
+
 ImgPath = 'C:\Engine\rome_external\PassiveFixationMask\randomFace40\stim\';
-
-% plot
-n_image = size(main_pc,1);
-fh = figure('Position', [50 100 150 150]); hold on;
+fh = figure('Position', [50 100 300 300]); hold on;
 colormap(gray);
-for i = 1:n_image
+for i = 1:20
     % load image
-    img = imread([ImgPath, fname{i}]);
+    img = imread(fullfile(ImgPath, ImgName{i}));
 
     % determine width and height
     img_width = size(img, 2);
     img_height = size(img, 1);
-    scale = 0.003; % 0.0006 for z-scored; 0.000015 for un-z-scored
+    scale = 0.0006*1.6/2; % 0.0006 for z-scored; 0.000015 for un-z-scored
     width = img_width * scale;
     height = img_height * scale;
 
     % plot image at location
-    image([main_pc(i,1)-width/2, main_pc(i,1)+width/2], [main_pc(i,2)-height/2, main_pc(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
+    image([MDS_2d(i,1)-width/2, MDS_2d(i,1)+width/2], [MDS_2d(i,2)-height/2, MDS_2d(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
 end
-format_panel(fh, 'xlabel', 'Feature PC 1', 'ylabel', 'Appearance PC 1', 'axis', 'equal') % make axis equal so that faces are not stretched
-print(fh, '-dpdf', fullfile(FigDir, 'human_in_face_space.pdf'));
+format_panel(fh, 'xlabel', 'Dim 1', 'ylabel', 'Dim 2', 'xlim')
+axis equal
+print(fh, '-dpdf', fullfile(FigDir, sprintf('MDS_image_face_%s.pdf', CAT)));
 
-%% ** plot monkey faces in monkey face space
-% get PC coordinates
-pcscore_monkey = load(fullfile(MainInterimDir, experiment, 'pcscore_monkey.mat')).pcscore_monkey;
-main_pc = pcscore_monkey(:, [1 26]);
+%% plot images based on 2-d face MDS (both human and monkey)
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+pc = cell2mat(data(:, 5));
+ImgName = data(:, 2);
 
-% get iamges
-fname = load('C:\Engine\rome_external\PassiveFixationMask\randomFace40\process.mat').fname; % (40 stim, 1)
+RSM = corrcoef(pc'); % correlation between conditions
+RDM = 1-RSM; % dissimilarity matrix
+MDS_2d = mdscale(RDM, 2, 'Criterion', 'metricstress'); % get the first 2 dims
+
 ImgPath = 'C:\Engine\rome_external\PassiveFixationMask\randomFace40\stim\';
-
-% plot
-n_image = size(main_pc,1);
-fh = figure('Position', [50 100 150 150]); hold on;
+fh = figure('Position', [50 100 300 300]); hold on;
 colormap(gray);
-for i = 1:n_image
+for i = 1:40
     % load image
-    img = imread([ImgPath, fname{i + 20}]); % load monkey faces
+    img = imread(fullfile(ImgPath, ImgName{i}));
 
     % determine width and height
     img_width = size(img, 2);
     img_height = size(img, 1);
-    scale = 0.003; % 0.0006 for z-scored; 0.000015 for un-z-scored
+    scale = 0.0006*1.6/2; % 0.0006 for z-scored; 0.000015 for un-z-scored
     width = img_width * scale;
     height = img_height * scale;
 
     % plot image at location
-    image([main_pc(i,1)-width/2, main_pc(i,1)+width/2], [main_pc(i,2)-height/2, main_pc(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
+    image([MDS_2d(i,1)-width/2, MDS_2d(i,1)+width/2], [MDS_2d(i,2)-height/2, MDS_2d(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
 end
-format_panel(fh, 'xlabel', 'Feature PC 1', 'ylabel', 'Appearance PC 1', 'axis', 'equal')
-print(fh, '-dpdf', fullfile(FigDir, 'monkey_in_face_space.pdf'));
+format_panel(fh, 'xlabel', 'Dim 1', 'ylabel', 'Dim 2', 'xlim')
+axis equal
+print(fh, '-dpdf', fullfile(FigDir, sprintf('MDS_image_face.pdf')));
 
-%% plot rand40 faces and pair 1-5 faces in the shared face space
-pcscore_human = load(fullfile(MainInterimDir, experiment, 'pcscore_human_share_rand40.mat')).pcscore_human;
-pcscore_monkey = load(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_rand40.mat')).pcscore_monkey;
-pcscore_human_ = load(fullfile(MainInterimDir, experiment, 'pcscore_human_share_pari1to5.mat')).pcscore_human;
-pcscore_monkey_ = load(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_pari1to5.mat')).pcscore_monkey;
 
-dim = [1 26]; % feature PC 1, appearance PC 1
-pcscore_human = pcscore_human(:, dim); pcscore_human_ = pcscore_human_(:, dim);
-pcscore_monkey = pcscore_monkey(:, dim); pcscore_monkey_ = pcscore_monkey_(:, dim);
+%% plot images based on 2-d neural MDS
+CAT = 'human';
 
-h = nan(4,1);
-fh = figure('Position', [50 100 270 150]); hold on;
-h(1) = scatter(pcscore_human(:,1), pcscore_human(:,2), 5, 'blue', 'o');
-h(2) = scatter(pcscore_human_(:,1), pcscore_human_(:,2), 5, 'blue', 'o', 'filled', 'MarkerEdgeColor', 'black');
-h(3) = scatter(pcscore_monkey(:,1), pcscore_monkey(:,2), 5, 'red', 'o');
-h(4) = scatter(pcscore_monkey_(:,1), pcscore_monkey_(:,2), 5, 'red', 'o', 'filled', 'MarkerEdgeColor', 'black');
-plot([pcscore_human_(:,1)'; pcscore_monkey_(:,1)'], [pcscore_human_(:,2)'; pcscore_monkey_(:,2)'], 'Color', 'black', 'LineWidth', 0.5)
-legend(h, {'Human (rand40)', 'Human (pair1-5)', 'Monkey (rand40)', 'Monkey (pair1-5)'}, 'Location', 'eastoutside');
-if all(dim==[1 2])
-    format_panel(fh, 'xlabel', 'Feature PC 1', 'ylabel', 'Feature PC 2', 'axis', 'normal')
-    print(fh, '-dpdf', fullfile(FigDir, 'faces_rand40_pair1to5_view1.pdf'));
-elseif all(dim==[1 26])
-    format_panel(fh, 'xlabel', 'Feature PC 1', 'ylabel', 'Appearance PC 1', 'axis', 'normal')
-    print(fh, '-dpdf', fullfile(FigDir, 'faces_rand40_pair1to5_view2.pdf'));
-elseif all(dim==[2 27])
-    format_panel(fh, 'xlabel', 'Feature PC 2', 'ylabel', 'Appearance PC 2', 'axis', 'normal')
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+fnd = fnd.extract_epoch(1);
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+switch CAT
+    case 'human'
+        fnd = fnd.extract_trial(fnd.getp('stim_id')<=20);
+        ID = fnd.getp('stim_id');
+        ImgName = data(1:20, 2);
+    case 'monkey'
+        fnd = fnd.extract_trial(fnd.getp('stim_id')>20);
+        ID = fnd.getp('stim_id')-20;
+        ImgName = data(21:end, 2);
 end
 
-%% PSTH (population)
-fnd = load(get_file_path(monkey, experiment, 1, 'FND_sorted')).fnd;
+FR = fnd.FR({1, [300 500]}, ID, true); % (unit, condition)
+RSM = corrcoef(FR); % correlation between conditions
+RDM = 1-RSM; % dissimilarity matrix
+MDS_2d = mdscale(RDM, 2, 'Criterion', 'metricstress'); % get the first 2 dims
+
+ImgPath = 'C:\Engine\rome_external\PassiveFixationMask\randomFace40\stim\';
+fh = figure('Position', [50 100 300 300]); hold on;
+colormap(gray);
+for i = 1:20
+    % load image
+    img = imread(fullfile(ImgPath, ImgName{i}));
+
+    % determine width and height
+    img_width = size(img, 2);
+    img_height = size(img, 1);
+    scale = 0.0006*1.6/2; % 0.0006 for z-scored; 0.000015 for un-z-scored
+    width = img_width * scale;
+    height = img_height * scale;
+
+    % plot image at location
+    image([MDS_2d(i,1)-width/2, MDS_2d(i,1)+width/2], [MDS_2d(i,2)-height/2, MDS_2d(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
+end
+format_panel(fh, 'xlabel', 'Dim 1', 'ylabel', 'Dim 2', 'xlim')
+axis equal
+print(fh, '-dpdf', fullfile(FigDir, sprintf('MDS_image_neural_%s.pdf', CAT)));
+
+%% plot images based on 2-d neural MDS (both human and monkey)
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+fnd = fnd.extract_epoch(1);
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+
 ID = fnd.getp('stim_id');
-psth_data = fnd.PSTH(ID, {'boxcar', 100});
+ImgName = data(:, 2);
 
-clear opt
-opt.cutoff = fnd.cutoff();
-opt.plot = set_plot_opt('vik', max(ID(:)));
-opt.event_label = {fnd.alignto.event};
-fh = showPopPSTH(fnd.tstamp, psth_data, opt);
-print(fh, '-dpdf', fullfile(FigDir, 'PopPSTH.pdf'));
+FR = fnd.FR({1, [300 500]}, ID, true); % (unit, condition)
+RSM = corrcoef(FR); % correlation between conditions
+RDM = 1-RSM; % dissimilarity matrix
+MDS_2d = mdscale(RDM, 2, 'Criterion', 'metricstress'); % get the first 2 dims
 
-%% ** PCA (stim id)
-fnd = load(get_file_path(monkey, experiment, 1, 'FND_sorted')).fnd;
+ImgPath = 'C:\Engine\rome_external\PassiveFixationMask\randomFace40\stim\';
+fh = figure('Position', [50 100 300 300]); hold on;
+colormap(gray);
+for i = 1:40
+    % load image
+    img = imread(fullfile(ImgPath, ImgName{i}));
+
+    % determine width and height
+    img_width = size(img, 2);
+    img_height = size(img, 1);
+    scale = 0.0006*1.6/2; % 0.0006 for z-scored; 0.000015 for un-z-scored
+    width = img_width * scale;
+    height = img_height * scale;
+
+    % plot image at location
+    image([MDS_2d(i,1)-width/2, MDS_2d(i,1)+width/2], [MDS_2d(i,2)-height/2, MDS_2d(i,2)+height/2], flipud(img), 'CDataMapping', 'scaled');
+end
+format_panel(fh, 'xlabel', 'Dim 1', 'ylabel', 'Dim 2', 'xlim')
+axis equal
+print(fh, '-dpdf', fullfile(FigDir, sprintf('MDS_image_neural.pdf')));
+
+%% similarity of RDM of neural data and shared face PC
+CAT = 'monkey';
+[RDM, MDS_2d] = deal(cell(n_files, 1));
+for n = 1:n_files
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_epoch(1);
+
+    % get FR
+    switch CAT
+        case 'human'
+            fnd = fnd.extract_trial(fnd.getp('stim_id')<=20);
+            ID = fnd.getp('stim_id');
+        case 'monkey'
+            fnd = fnd.extract_trial(fnd.getp('stim_id')>20);
+            ID = fnd.getp('stim_id')-20;
+    end
+    FR = fnd.FR({1, [300 500]}, ID, true); % (unit, condition)
+
+    % get neural RDM
+    RSM = corrcoef(FR); % correlation between conditions
+    RDM{n} = 1-RSM; % dissimilarity matrix
+    MDS_2d{n} = mdscale(RDM{n}, 2, 'Criterion', 'metricstress'); % get the first 2 dims
+end
+
+% similarity among neural RDMs
+p_value_neural = nan(n_files, n_files);
+for n = 1:n_files
+    for m = n:n_files
+        [r_obs, p_value_neural(n,m)] = mantel_test(RDM{n}, RDM{m}, 10000, 'both');
+        p_value_neural(m,n) = p_value_neural(n,m);
+    end
+end
+
+% get face PC
+data = load(fullfile(InterimDir, sprintf('shared_face_space_rand40.mat'))).data;
+
+switch CAT
+    case 'human'
+        main_pc = cell2mat(data(1:20,5));
+    case 'monkey'
+        main_pc = cell2mat(data(21:end,5));
+end
+
+% get MDS of face PC
+face_pc = main_pc'; % (dim, condition)
+RSM = corrcoef(face_pc); % correlation between conditions
+RDM_face = 1-RSM; % dissimilarity matrix
+MDS_2d = mdscale(RDM_face, 2, 'Criterion', 'metricstress'); % get the first 2 dims
+
+% similarity between neural RDM and face PC RDM
+p_value_face = nan(1, n_files);
+for n = 1:n_files
+    [r_obs, p_value_face(n)] = mantel_test(RDM_face, RDM{n}, 10000, 'both');
+end
+
+% plot RDMs
+figure('Position', [100 100 970 310]);
+for n = 1:n_files
+    subplot(2,5,n); hold on
+    imagesc(RDM{n}, [0 2]); colorbar; set(gca, 'YDir', 'reverse'); title({'Neural RDM', sprintf('Session %d', n)})
+    format_panel(gca, 'xlabel', '#Face', 'ylabel', '#Face', 'xtick', [1 10 20], 'ytick', [1 10 20])
+end
+subplot(2,5,5); hold on
+imagesc(RDM_face, [0 2]); colorbar; set(gca, 'YDir', 'reverse'); title('Face PC RDM')
+format_panel(gca, 'xlabel', '#Face', 'ylabel', '#Face', 'xtick', [1 10 20], 'ytick', [1 10 20])
+
+subplot(2,5,6)
+imagesc(p_value_neural, [0 0.05]); colorbar; title({'P-value', 'between sessions'})
+format_panel(gca, 'xlabel', '#Session', 'ylabel', '#Session', 'xtick', 1:4, 'ytick', 1:4)
+
+subplot(2,5,7)
+imagesc(p_value_face, [0 0.05]); colorbar; title({'P-value', 'between neuron and face PC'})
+format_panel(gca, 'xlabel', '#Session', 'xtick', 1:4, 'axis', 'equal', 'ylim', [-2.5 2.5])
+
+subplot(2,5,8)
+text(0.5, 0.5, sprintf('%s %s (%s)', monkey, experiment, CAT), 'FontSize', 10); axis off
+colormap jet
+
+%%
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted_preprocessed')).fnd;
+
+clear opt;
+opt.time_win = {{1, [50 100]}, {1, [100 150]}, {1, [150 200]}, {1, [200 250]}, ...
+                {2, [200 250]}, {2, [250 300]}, {2, [300 350]}, {2, [350 400]}, ...
+                {3, [-250 -200]}, {3, [-200 -150]}, {3, [-150 -100]}, {3, [-100 -50]}}; % define time windows
+% opt.time_win = {{1, [150 200]}, {3, [-200 -150]}}; % for report
+opt.plot = set_plot_opt('vik', 40);
+opt.ID_method = 'cat_1'; % one category only
+run_mds = runMDS(opt);
+
+% dissimilarity matrix
+[fh_sim, fh_mds, stat] = run_mds.getRDM(fnd);
+% print(fh_sim, '-dpdf', [FigDir 'fig3_similarity.pdf']);
+% print(fh_mds, '-dpdf', [FigDir 'fig3_MDS.pdf']);
+
+% face images
+% category = 1; % human category
+% run_mds.plotImage(stat.mds_2d, FigDir, category);
+
+% Mantel test
+[fh_sim, fh_p] = run_mds.getCorrRDM(stat.RDM); % whether dissimilarity matrix is similar across timepoints
+% print(fh_sim, '-dpdf', [FigDir 'fig3_structure_is_similar.pdf']);
+
+% FR matrix 
+fh_FR = run_mds.plotFR(stat.FR); % plot FR
+print(fh_FR, '-dpdf', [FigDir 'fig3_FR.pdf']);
+[fh_sim, fh_p] = run_mds.getCorrFR(stat.FR); % whether FR matrix is similar across timepoints
+print(fh_sim, '-dpdf', [FigDir 'fig3_FR_is_not_similar.pdf']);
+
+%% PCA (stim id)
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+fnd = fnd.extract_epoch(1);
 ID = fnd.getp('stim_id');
 
 clear opt;
@@ -286,139 +448,13 @@ set(gca, 'LineWidth', 0.5)
 xtickangle(0)
 print(fh, '-dpdf', fullfile(FigDir, 'PCA_stimID.pdf'));
 
-%% predict FR from face pc (TBU)
-%        stim_cat targ_cor stim_id
-% human  2        1        1-20
-% monkey 1        2        21-40
-
-% face pc
-pcscore_human = load(fullfile(MainInterimDir, experiment, 'pcscore_human.mat')).pcscore_human; % (20 faces, 50 face pc)
-pcscore_human = pcscore_human(:, [1 2 3 26 27 28]); % (20 faces, face pc)
-
-% FR
-n = 1;
-fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
-fnd = fnd.extract_trial(fnd.getp('stim_cat')==2);
-r = fnd.FR({1, [50 400]});
-I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
-fnd = fnd.set_unit_criteria('custom', I);
-
-[nunit, ntime, ntrial] = size(fnd.data{1});
-condID = fnd.getp('stim_id');
-psth = fnd.PSTH(condID, {'boxcar', 100}); psth = psth{1};
-
-r = fnd.FR({1, [100 400]}, condID); % (unit, condition)
-FR = fnd.FR({1, [100 400]})'; % (trial, unit) = (observation, feature)
-
-% PCA
-[coeff, score, latent] = pca(psth(:,:)');
-score
 
 
-coeff = pca(r'); % coeff ..(unit, pc)
-dim = 1:6;
-coeff = coeff(:,dim);
-
-% regression
-% coeff (unit, pc) = w * pcscore_human (stim, face pc)
-
-X = pcscore_human(:,1);
-for n = 1:6 % pc
-    y = coeff(:,n);
-    b = regress(y', X');
-end
 
 
-b = nan(nunit,7);
-stats = nan(nunit,4);
-X = pcscore_human(stim_id,:);
-for u = 1:nunit
-    y = FR(:,u);
-    [b(u,:),bint,r,rint,stats(u,:)] = regress(y, [ones(size(X,1),1), X]);
-end
 
-% plot
-fh = figure('Position', [150 500 300 400]);
-imagesc(b(:,2:end))
-xlabel('face PC'); xticklabels({'1', '2', '3', '26', '27', '28'})
-ylabel('unit')
-colorbar
-print(fh, '-dpdf', fullfile(FigDir, sprintf('regression_%s_%s_session%d.pdf', monkey, experiment, n)));
 
-%% manifold (face pc) 看不出规律
-pcscore_human = load(fullfile(MainInterimDir, experiment, 'pcscore_human_share_rand40.mat')).pcscore_human; % (stim, face pc)
-pcscore_monkey = load(fullfile(MainInterimDir, experiment, 'pcscore_monkey_share_rand40.mat')).pcscore_monkey; % (stim, face pc)
 
-pcscore_human = pcscore_human(:,1); % pc 1
-pcscore_monkey = pcscore_monkey(:,1);
 
-for n = 1:n_files
-    % load data
-    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
-    fnd = fnd.extract_epoch(1);
-
-    % select unit
-    r = fnd.FR({1, [100 500]});
-    I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
-    fnd = fnd.set_unit_criteria('custom', I);
-
-    % select trial
-    fnd = fnd.extract_trial(fnd.getp('stim_id')<=20); % human face only
-    fnd = fnd.extract_trial(fnd.getp('targ_cor')==fnd.getp('targ_cho')); % correct trials only
-
-    % get ID
-    %        stim_cat targ_cor stim_id
-    % human  2        1        1-20
-    % monkey 1        2        21-40
-    [nunit, ntime, ntrial] = size(fnd.data{1});
-    stim_id = fnd.getp('stim_id'); stim_id = stim_id(1,:);
-    face_pc = nan(1, ntrial);
-    for tr = 1:ntrial
-        if stim_id(tr)<=20
-            face_pc(tr) = pcscore_human(stim_id(tr));
-        else
-            face_pc(tr) = pcscore_monkey(stim_id(tr)-20);
-        end
-    end
-
-    nbin = 10;
-    face_pc_list = prctile(face_pc, linspace(0,100,nbin+1));
-    ID = nan(1, ntrial);
-    for tr = 1:ntrial
-        idx = find(face_pc_list>=face_pc(tr));
-        ID(tr) = idx(1);
-    end
-    mean_coh = nan(1, nbin);
-    for b = 1:nbin
-        mean_coh(b) = mean(face_pc(ID==b));
-    end
-    ID = repmat(ID, [nunit, 1]);
-
-    stim_cat = fnd.getp('stim_cat');
-    targ_cho = fnd.getp('targ_cho');
-    targ_cor = fnd.getp('targ_cor');
-    trial_classifier_result(ID, {'stim_cat', 'targ_cor', 'targ_cho'}, {stim_cat, targ_cor, targ_cho});
-
-    % plot manifold
-    data = fnd.PSTH(ID, {'boxcar', 100});
-
-    opt.mean_coh = mean_coh;
-    opt.plot = set_plot_opt('vik', max(ID(:)));
-    opt.PC_range = [250 600];
-    opt.Time = [100 200 300 400 500 600];
-    opt.epoch = 1;
-
-    opt.roughness = 5e-4;
-    opt.dim_sign = [1 -1 1];
-    opt.dim = [3 1 2];
-    opt.view = [-145 34];
-    fh = showPCA(fnd.tstamp, data, opt);
-
-    % change format
-    format_panel(gcf, 'fig_size', [1270 250])
-    a = get(gca,'XTickLabel'); set(gca,'XTickLabel',a,'fontsize',6)
-    h = get(gca,'xlabel'); set(h, 'FontSize', 7); h = get(gca,'ylabel'); set(h, 'FontSize', 7); h = get(gca,'zlabel'); set(h, 'FontSize', 7);
-    print(fh, '-dpdf', fullfile(FigDir, sprintf('manifold_facePC_%s_%s_session%d.pdf', monkey, experiment, n)));
-end
 
 

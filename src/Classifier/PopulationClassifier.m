@@ -62,7 +62,15 @@ ntrial = length(target);
 nunit = size(fnd.data{1}, 1);
 
 if opt.save_trial_param
-    morph_level = fnd.getp('morph_level');
+    try
+        morph_level = fnd.getp('morph_level');
+    catch
+        try
+            morph_level = fnd.getp('morph');
+        catch
+            error('check morph');
+        end
+    end
     task_set = fnd.getp('task_set');
     targ_cor = fnd.getp('targ_cor');
     targ_cho = fnd.getp('targ_cho');

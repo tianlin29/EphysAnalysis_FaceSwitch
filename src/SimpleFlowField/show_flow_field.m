@@ -1,4 +1,4 @@
-function fh = show_flow_field(data, opt)
+function [fh, stat] = show_flow_field(data, opt)
 % function fh = show_flow_field(data, opt)
 % Tstamp = 1 x time
 % raster = cell x time x trial
@@ -14,7 +14,6 @@ def.input_col = [0 0 0];
 def.legend = {};
 def.xlabel = 'X';
 def.ylabel = 'Y';
-def.title = '';
 
 opt = safeStructAssign(def, opt);
 
@@ -34,6 +33,9 @@ ncond = size(mean_trajectory, 2);
 
 U(Cnt(:) < opt.min_sample) = 0;
 V(Cnt(:) < opt.min_sample) = 0;
+
+% U(Xgrid<-80 | Xgrid>80 | Ygrid<-80 | Ygrid>80) = 0;
+% V(Xgrid<-80 | Xgrid>80 | Ygrid<-80 | Ygrid>80) = 0;
 
 nonZeroMask = (U ~= 0) | (V ~= 0);
 [rowIdx, colIdx] = find(nonZeroMask);
@@ -77,8 +79,12 @@ end
 set(gca, 'xlim', xlims, 'ylim', ylims');
 xlabel(opt.xlabel);
 ylabel(opt.ylabel);
-title(opt.title);
 axis equal;
+
+stat.U = U;
+stat.V = V;
+stat.Xgrid = Xgrid;
+stat.Ygrid = Ygrid;
 
 end
 

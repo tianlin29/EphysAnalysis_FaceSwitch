@@ -36,15 +36,33 @@ end
 % reorganize FR
 firingRates = permute(firingRates, [1 4 3 2]); % (unit, trial, time, condition) -> (unit, condition, time, trial)
 [nunit, ncond, ntime, ntrial] = size(firingRates);
-firingRates = reshape(firingRates, [nunit, ncond/2, 2, ntime, ntrial]); % (unit, stimulus, 2 choices, time, trial)
+if size(firingRates,2)==2 % only 2 condition, therefore no choice information
+    flag_no_choice = true;
+else
+    flag_no_choice = false;
+end
+
+if flag_no_choice
+    % pass
+else
+    firingRates = reshape(firingRates, [nunit, ncond/2, 2, ntime, ntrial]); % (unit, stimulus, 2 choices, time, trial)
+end
 
 % detrend
 if opt.detrend
-    mTrend = nanmean(nanmean(nanmean(firingRates,5),3),2); % (unit, 1, 1, time)
+    if flag_no_choice
+        mTrend = nanmean(nanmean(firingRates,4),2); % (unit, 1, time)
+    else
+        mTrend = nanmean(nanmean(nanmean(firingRates,5),3),2); % (unit, 1, 1, time)
+    end
     firingRates = bsxfun(@minus, firingRates, mTrend);
 end
 
-firingRatesAverage = nanmean(firingRates,5);
+if flag_no_choice
+    firingRatesAverage = nanmean(firingRates,4);
+else
+    firingRatesAverage = nanmean(firingRates,5);
+end
 % firingRatesAverage: N x S x D x T
 %
 % N is the number of neurons
@@ -125,8 +143,13 @@ if nargout > 1
 
     si = size(firingRatesAverage);
     score = (firingRatesAverage(:,:)' * W)';
-    output_data.score = reshape(score, size(W,2), si(2), si(3), si(4));
-    % dPCA dim x stim x choice x time
+    if flag_no_choice
+        output_data.score = reshape(score, size(W,2), si(2), si(3));
+        % dPCA dim x stim x time
+    else
+        output_data.score = reshape(score, size(W,2), si(2), si(3), si(4));
+        % dPCA dim x stim x choice x time
+    end
 end
 
 end

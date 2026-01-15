@@ -1,29 +1,29 @@
-function [coef, detPSTH] = getPC_coef(tstamp, data, opt)
+function [coeff, psth_mn] = getPC_coef(tstamp, psth, opt)
 
 def.epoch = 1;
 def.PC_range = [250 600];
 opt = safeStructAssign(def, opt);
 
-PSTH = data{opt.epoch};
-Tstamp = tstamp{opt.epoch};
+% extract time epoch
+psth = psth{opt.epoch};
+tstamp = tstamp{opt.epoch};
 
-%% preprocess
 % mean imputation to nan
-if sum(isnan(PSTH(:)))>0
-    fill_val = bsxfun(@times, isnan(PSTH), nanmean(PSTH(:,:),2));
-    PSTH(isnan(PSTH(:))) = fill_val(isnan(PSTH(:)));
+if sum(isnan(psth(:)))>0
+    fill_val = bsxfun(@times, isnan(psth), nanmean(psth(:,:),2));
+    psth(isnan(psth(:))) = fill_val(isnan(psth(:)));
 end
 
 % detrend
-detPSTH = nanmean(PSTH,3); % (unit, time)
-PSTH = bsxfun(@minus, PSTH, detPSTH);
+psth_mn = nanmean(psth, 3); % (unit, time)
+psth = bsxfun(@minus, psth, psth_mn);
 
-% PC range
-ind = Tstamp>=opt.PC_range(1) & Tstamp<=opt.PC_range(2);
-pcPSTH = PSTH(:, ind, :); % (unit, time, cond)
+% PC time range
+I = tstamp>=opt.PC_range(1) & tstamp<=opt.PC_range(2);
+psth = psth(:, I, :); % (unit, time, cond)
 
-%% run PCA
-coef = pca(pcPSTH(:,:)'); % coeff ..(feature, pc)
+% run PCA
+coeff = pca(psth(:,:)'); % coeff ..(unit, pc)
 
 end
 

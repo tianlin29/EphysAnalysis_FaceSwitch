@@ -1,7 +1,7 @@
 run('../Initialize.m');
 addpath(genpath(fullfile(MainDir, 'external', 'ccgp_Courellis2024', 'code', 'helper_functions')));
 monkey = 'Nick';
-experiment = 'learnTask4';
+experiment = 'faceColor';
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'CCGP'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'CCGP'); mkdir(InterimDir);
@@ -39,6 +39,49 @@ for n = 1:length(file_path)
     iscorrect = fnd.getp('targ_cho')==fnd.getp('targ_cor'); iscorrect = iscorrect(1,:)';
     response = fnd.getp('targ_cho'); response = response(1,:)';
     reward = abs(fnd.getp('morph_level'))>0.3; reward = reward(1,:)'; % actually it is easy vs. difficult
+    neu_fnd.param = cat(2, neu_fnd.param, {table(iscorrect, context, reward, response)});
+
+    % arrange unit and session info
+    neu_fnd.cellinfo = cat(2, neu_fnd.cellinfo, ones(1,nunit)); % 1 ..PFC neurons
+    neu_fnd.sessionID = cat(2, neu_fnd.sessionID, repmat({sprintf('session_%d', n)}, [1,nunit]));
+end
+
+save(fullfile(InterimDir, sprintf('neu_fnd_%s_%s.mat', monkey, experiment)), 'neu_fnd')
+
+%% [face-color task] transfrom FND to suitable data format
+file_path = arrayfun(@(x) get_file_path(monkey, experiment, x, 'FND_sorted'), [1:8, 18:23], 'uni', 0);
+n_files = length(file_path);
+
+neu_fnd.array = {};
+neu_fnd.param = {};
+neu_fnd.cellinfo = [];
+neu_fnd.sessionID = {};
+for n = 1:length(file_path)
+    fprintf('session %d\n', n)
+
+    % load data
+    fnd = load(file_path{n}).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    % remove units
+    FR = fnd.FR({1, [50 600]});
+    I = nanmean(FR, 2)>=1; % mean FR should >= 1 Hz
+    fnd = fnd.set_unit_criteria('custom', I);
+
+    % arrange neural data
+    [nunit, ntime, ntrial] = size(fnd.data{1});
+    raster = fnd.raster(1); raster = raster{1}; % (unit, time, trial)
+    tstamp = fnd.tstamp{1};
+    fr_stim = squeeze(mean(raster(:, tstamp>50 & tstamp<600, :), 2)*1000); % (unit, trial)
+    for u = 1:nunit
+        neu_fnd.array = cat(2, neu_fnd.array, {table(fr_stim(u,:)', 'VariableNames', {'fr_stim'})});
+    end
+
+    % arrange trial parameter
+    context = fnd.getp('task_set'); context = context(1,:)';
+    iscorrect = true(size(context)); % use both correct and wrong trials
+    response = fnd.getp('targ_cho'); response = response(1,:)';
+    reward = fnd.getp('targ_cor'); reward = reward(1,:)'; % actually it is category
     neu_fnd.param = cat(2, neu_fnd.param, {table(iscorrect, context, reward, response)});
 
     % arrange unit and session info

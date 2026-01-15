@@ -1,6 +1,6 @@
 run('../Initialize.m');
-monkey = 'Nick'; % Nick, Woody
-experiment = 'learnTask2'; % learnTask2, learnTask3, learnTask4
+monkey = 'Woody'; % Nick, Woody
+experiment = 'noCue'; % learnTask2, learnTask2_increaseSwitchFreq, learnTask3, learnTask4
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'PSTH'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'PSTH'); mkdir(InterimDir);
@@ -181,8 +181,79 @@ for n = 1:n_files
     end
 end
 
+%% example units (coh)
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted_preprocessed')).fnd;
+unitID = [1 1 1;
+          1 17 1];
+trc = trial_classifier('stim_group', {[0 24], [24 48], [48 Inf]}, 'plus_cat', 1);
 
-%% PSTH of single units (coh)
+clear opt;
+opt.epoch = [1 2 4];
+opt.less_timepoints = 1;
+opt.cutoff = [{[1 551]}, {[51 451]}, {[1 696]}, {[51 401]}];
+opt.plot = set_plot_opt('vik', 6);
+opt.plot.linewidth = 0.75 * ones(6,1);
+opt.event_label = {'Stim on', 'Stim off', 'FP off', 'Resp'};
+for n = 1:size(unitID, 1)
+    fnd1 = fnd.set_unit_criteria('customID', unitID(n,:));
+    ID = trc.stim_choice(fnd1.getp('morph_level')*100, fnd1.getp('targ_cho')); % sort by coh
+    psth_data = fnd1.PSTH(ID, {'boxcar', 100});
+    fh = showPopPSTH(fnd1.tstamp, psth_data, opt);
+    title(sprintf('channel%d unit%d', unitID(n,2), unitID(n,3)))
+    set(findobj(gcf, 'Type', 'axes'), 'XTickLabelRotation', 90);
+    allAxes = findobj(gcf, 'type', 'axes');
+    set(allAxes(3), 'YColor', 'none');
+    set(gcf, 'pos', [100 100 245 85])  
+    print(fh, '-dpdf', fullfile(FigDir, ['PSTH_coh' sprintf('_ch%d_u%d', unitID(n,2), unitID(n,3)) '.pdf']));
+end
+
+%% example units (pair)
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted_preprocessed')).fnd;
+unitID = [1 1 2;
+          1 10 1;
+          1 53 3;
+          1 54 1;
+          1 80 2;
+          1 86 1;
+          1 93 2];
+trc = trial_classifier('stim_group', {[0 Inf]}, 'plus_cat', 1);
+
+clear opt;
+opt.epoch = [1 2 4];
+opt.less_timepoints = 1;
+opt.cutoff = [{[1 551]}, {[51 451]}, {[1 696]}, {[51 401]}];
+opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
+switch experiment
+    case {'learnTask2', 'faceColor', 'threeExemplar', 'noCue', 'learnTask2_increaseSwitchFreq'}
+        new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+    case 'learnTask3'
+        new_color_set = [0 0 0; 58 191 153; 0 0 0; 58 191 153]/255;
+    case 'learnTask4'
+        new_color_set = [0 0 0; 240 169 58; 0 0 0; 240 169 58]/255;
+end
+opt.plot.color = new_color_set;
+opt.plot.facecolor = new_color_set;
+opt.plot.edgecolor = new_color_set;
+opt.plot.linewidth = 0.75 * ones(6,1);
+opt.event_label = {'Stim on', 'Stim off', 'FP off', 'Resp'};
+for n = 1:size(unitID, 1)
+    fnd1 = fnd.set_unit_criteria('customID', unitID(n,:));
+    targ_cho = fnd1.getp('targ_cho');
+    task_set = fnd1.getp('task_set');
+    ID = task_set; ID(targ_cho==2) = ID(targ_cho==2) + max(ID(:));
+    psth_data = fnd1.PSTH(ID, {'boxcar', 100});
+    fh = showPopPSTH(fnd1.tstamp, psth_data, opt);
+    title(sprintf('channel%d unit%d', unitID(n,2), unitID(n,3)))
+    set(findobj(gcf, 'Type', 'axes'), 'XTickLabelRotation', 90);
+    allAxes = findobj(gcf, 'type', 'axes');
+    set(allAxes(3), 'YColor', 'none');
+    set(gcf, 'pos', [100 100 245 85])  
+    print(fh, '-dpdf', fullfile(FigDir, ['PSTH_pair' sprintf('_ch%d_u%d', unitID(n,2), unitID(n,3)) '.pdf']));
+end
+
+%% PSTH of single units (coh*pair)
 TASK_ID = 2;
 
 for n = 10:n_files

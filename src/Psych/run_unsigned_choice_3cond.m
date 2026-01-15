@@ -75,7 +75,7 @@ if opt.normalize_threshold; thres_for_plot = thres./(thres(:,1)); else; thres_fo
 for c = 1:ncond
     plot(thres_for_plot(:,c), '.-', 'markers', 7, 'Color', opt.color(c,:), 'LineWidth', opt.linewidth(c));
 end
-format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Threshold (% Morph)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:length(stat))
+format_panel(gca, 'xlabel', '#Session', 'ylabel', 'Threshold (% Morph)', 'xlim', [0.5 length(acc1)+0.5], 'xtick', 1:2:length(stat))
 
 end
 
@@ -258,7 +258,7 @@ stat = struct('ucoh', ucoh, 'lucoh', lucoh, 'ncond', ncond, 'p', p, ... % plot d
     'thres', thres, ...
     'ntrial1', sum(cond==1), 'ntrial2', sum(cond==2), 'ntrial3', sum(cond==3), ... % trial number for quick summary
     'acc1', mean(cor(cond==1)), 'acc2', mean(cor(cond==2)), 'acc3', mean(cor(cond==3)), ... % accuracy for quick summary
-    'lapse1', 1-p(end,1), 'lapse2', 1-p(end,2), 'lapse3', 1-p(end,3)); % lapse rate for quick summary
+    'lapse', 1-p(end,:)); % lapse rate for quick summary
 
 end
 

@@ -1,54 +1,96 @@
-a = [-0.1 0.5 0.2];
-b = [0.2 -0.4 -0.1];
-a * b'
+run('../Initialize.m');
+monkey = 'Nick';
+experiment = 'learnTask2';
+[~, n_files] = get_file_path(monkey, experiment);
+FigDir = fullfile(MainFigDir, experiment, monkey); mkdir(FigDir);
+InterimDir = fullfile(MainInterimDir, experiment, monkey); mkdir(InterimDir);
 
-%%
-% 示例1：创建2个10维的正交向量
-dim = 10;
-num_vectors = 2;
-orthogonal_inputs = create_orthogonal_vectors(dim, num_vectors);
+%% flow field
+n = 1;
+fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+fnd = fnd.extract_epoch(2);
+fnd = fnd.extract_trial(fnd.getp('task_set')==2);
 
-input1 = orthogonal_inputs(:, 1);
-input2 = orthogonal_inputs(:, 2);
+% get smooth detrended raster
+r = fnd.raster(1); r = r{1}*1000; % (unit, time, trial)
+[nunit, ntime, ntrial] = size(r);
+r_mn = mean(r, 3);
+r_detrend = r - r_mn;
 
-fprintf('输入向量1:\n');
-disp(input1');
-fprintf('输入向量2:\n');
-disp(input2');
+kernel = fspecial('average', [1, 100]);
+r_detrend = nanconv(r_detrend, kernel, 'same');
 
-% 验证正交性
-dot_product = dot(input1, input2);
-fprintf('内积: %.10f\n', dot_product);
-
-% 验证范数（应该是单位向量）
-fprintf('向量1的范数: %.6f\n', norm(input1));
-fprintf('向量2的范数: %.6f\n', norm(input2));
-
-%%
-function orthogonal_vectors = create_orthogonal_vectors(dim, num_vectors)
-%CREATE_ORTHOGONAL_VECTORS 创建一组正交向量
-%   输入参数:
-%       dim - 向量维度
-%       num_vectors - 需要创建的向量数量
-%   输出参数:
-%       orthogonal_vectors - dim × num_vectors 的正交矩阵
-
-    % 参数验证
-    if num_vectors > dim
-        error('向量数量不能超过维度数');
-    end
-    
-    % 生成随机矩阵
-    random_matrix = randn(dim, num_vectors);
-    
-    % 使用QR分解获得正交向量
-    [Q, R] = qr(random_matrix);
-    
-    % 提取前num_vectors列作为正交向量
-    orthogonal_vectors = Q(:, 1:num_vectors);
-    
-    % 可选：确保向量是单位向量（归一化）
-    % for i = 1:num_vectors
-    %     orthogonal_vectors(:, i) = orthogonal_vectors(:, i) / norm(orthogonal_vectors(:, i));
-    % end
+% PCA
+targ_cho = fnd.getp('targ_cho');
+ID = targ_cho;
+ncond = max(ID(:));
+psth = nan(nunit, ntime, ncond);
+for c = 1:ncond
+    psth(:,:,c) = mean(r_detrend(:,:,ID(1,:)==c), 3);
 end
+
+[coeff, score, latent] = pca(psth(:,:)');
+npc = 2;
+r_pc = reshape(coeff(:,1:npc)'*r_detrend(:,:), npc, ntime, ntrial);
+psth_pc = reshape(score(:,1:npc)', npc, ntime, ncond);
+
+% creat mesh
+ngrid = 20;
+x_edge = linspace(min(r_pc(:)), max(r_pc(:)), ngrid);
+y_edge = linspace(min(r_pc(:)), max(r_pc(:)), ngrid);
+[X, Y] = meshgrid(x_edge, y_edge);
+
+% calculate velocity
+[U_data, V_data] = deal(cell(ngrid, ngrid));
+for i = 1:ngrid
+    for j = 1:ngrid
+        U_data{i,j} = [];
+        V_data{i,j} = [];
+    end
+end
+
+for t = 1:ntime-1
+    t
+    for tr = 1:ntrial
+        x_t0 = r_pc(1,t,tr); x_t1 = r_pc(1,t+1,tr);
+        y_t0 = r_pc(2,t,tr); y_t1 = r_pc(2,t+1,tr);
+        col_idx = find(x_t0 >= x_edge(1:end-1) & x_t0 <= x_edge(2:end), 1);
+        row_idx = find(y_t0 >= y_edge(1:end-1) & y_t0 <= y_edge(2:end), 1);
+
+        u_t0 = x_t1 - x_t0;
+        v_t0 = y_t1 - y_t0;
+        U_data{row_idx, col_idx} = cat(1, U_data{row_idx, col_idx}, u_t0);
+        V_data{row_idx, col_idx} = cat(1, V_data{row_idx, col_idx}, v_t0);
+    end
+end
+
+[U, V] = deal(nan(ngrid, ngrid));
+for i = 1:ngrid
+    for j = 1:ngrid
+        nsample = length(U_data{i,j});
+        if nsample>=1000
+            U(i,j) = mean(U_data{i,j});
+            V(i,j) = mean(V_data{i,j});
+        end
+    end
+end
+
+% plot
+opt.plot = set_plot_opt('vik', ncond);
+figure; hold on
+quiver(X, Y, U, V)
+for c = 1:ncond
+    plot(psth_pc(1,:,c), psth_pc(2,:,c), 'Color', opt.plot.color(c,:));
+end
+
+
+
+
+
+
+
+
+
+
+
+

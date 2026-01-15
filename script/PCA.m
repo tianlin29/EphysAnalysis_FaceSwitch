@@ -1,6 +1,6 @@
 run('../Initialize.m');
-monkey = 'Nick'; % Nick, Woody
-experiment = 'faceColor'; % learnTask2, learnTask3, learnTask4, faceColor
+monkey = 'Woody'; % Nick, Woody
+experiment = 'learnTask3'; % learnTask2, learnTask2_increaseSwitchFreq, learnTask3, learnTask4, faceColor, faceColor_passiveLong, threeExemplar
 [~, n_files] = get_file_path(monkey, experiment);
 FigDir = fullfile(MainFigDir, 'PCA'); mkdir(FigDir);
 InterimDir = fullfile(MainInterimDir, 'PCA'); mkdir(InterimDir);
@@ -29,7 +29,7 @@ end
 tbl = table(nunit, ntask1, ntask2);
 
 %% manifold (coh)
-TASK_ID = 2;
+TASK_ID = 1;
 
 for n = 1:n_files
     % load data
@@ -66,7 +66,7 @@ for n = 1:n_files
     opt.roughness = 5e-4;
     opt.dim_sign = [1 -1 1];
     opt.dim = [3 1 2];
-    opt.view = [-145 34];
+    opt.view = [-128 90];
     fh = showPCA(fnd.tstamp, data, opt);
 
     % change format
@@ -82,6 +82,46 @@ disp(['Azimuth: ', num2str(currentAzimuth)]);
 disp(['Elevation: ', num2str(currentElevation)]);
 
 %% PCA (coh)
+for n = 1
+    % load data
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    % select unit
+    r = fnd.FR({1, [100 500]});
+    I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
+    fnd = fnd.set_unit_criteria('custom', I);
+
+    % get ID
+    task_set = fnd.getp('task_set');
+    morph_level = fnd.getp('morph_level')*100;
+    targ_cho = fnd.getp('targ_cho');
+    targ_cor = fnd.getp('targ_cor');
+
+    trc = trial_classifier('stim_group', {[0 24], [24 48], [48 Inf]}, 'plus_cat', 1);
+    [ID, mean_coh] = trc.stim_choice(morph_level, targ_cho, targ_cor); % correct trials only
+    trial_classifier_result(ID, {'morph_level', 'targ_cor', 'targ_cho', 'task_set'}, {morph_level, targ_cor, targ_cho, task_set});
+
+    % plot PCA
+    clear opt
+    opt.plot = set_plot_opt('vik', max(ID(:)));
+    opt.plot.markersize = 2*ones(max(ID(:)),1);
+    opt.plot.linewidth = 0.5*ones(max(ID(:)),1);
+    opt.epoch = 1;
+    opt.PC_range = [250 600];
+    opt.PSTH_conv = {'boxcar', 100};
+    opt.PC_kernel = {'bartlett', 200};
+
+    fh = showPCA_trajectory(fnd, ID, opt);
+    view([0 90])
+    format_panel(fh, 'fig_size', [130 130]); xtickangle(0) % report format
+    % saveas(fh, fullfile(FigDir, sprintf('PCA_coh_pair%d_%s_%s_session%d.fig', TASK_ID, monkey, experiment, n)));
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_coh_%s_%s_session%d.pdf', monkey, experiment, n)));
+end
+
+
+
+%% PCA (coh*pair)
 TASK_ID = 1;
 
 for n = 1:n_files
@@ -142,7 +182,7 @@ end
 
 %% PCA (choice*pair)
 % experiment = 'noCue';
-PLOT_FOR_REPORT = false;
+PLOT_FOR_REPORT = true;
 for n = [1:8, 18:20]
     % load data
     fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
@@ -169,7 +209,7 @@ for n = [1:8, 18:20]
     clear opt
     opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
     switch experiment
-        case {'learnTask2', 'faceColor'}
+        case {'learnTask2', 'faceColor', 'threeExemplar', 'noCue', 'learnTask2_increaseSwitchFreq'}
             new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
         case 'learnTask3'
             new_color_set = [0 0 0; 58 191 153; 0 0 0; 58 191 153]/255;
@@ -190,12 +230,13 @@ for n = [1:8, 18:20]
     opt.PC_kernel = {'bartlett', 200};
     
     fh = showPCA_trajectory(fnd, ID, opt);
+    % grid off
     view([20 45])
     % view([0 90]) % PC1-2
-    % view([146 13]) % task signal;
-    % format_panel(fh, 'fig_size', [150 150]); xtickangle(0) % report format
+    view([146 13]) % task signal;
+    format_panel(fh, 'fig_size', [130 130]); xtickangle(0) % report format
     saveas(fh, fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.fig', monkey, experiment, n)));
-    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.pdf', monkey, experiment, n)));
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d_angle2.pdf', monkey, experiment, n)));
 end
 
 %% legend (choice*pair)
@@ -208,6 +249,60 @@ for i = 1:4
     plot([0 10], [i i], 'Color', opt.plot.color(i,:), 'LineStyle', opt.plot.linestyle{i})
 end
 legend({'choice 1, pair 1', 'choice 1, pair 2', 'choice 2, pair 1', 'choice 2, pair 2'})
+
+%% PCA for faceColor_passiveLong (choice*pair)
+PLOT_FOR_REPORT = false;
+for n = 1:n_files
+    % load data
+    fnd = load(get_file_path(monkey, experiment, n, 'FND')).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    % select unit
+    r = fnd.FR({1, [100 500]});
+    I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
+    fnd = fnd.set_unit_criteria('custom', I);
+
+    % select trial
+    % fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor')); % correct trials only
+
+    % get ID
+    task_set = fnd.getp('task_set');
+    targ_cho = fnd.getp('targ_cho');
+    targ_cor = fnd.getp('targ_cor');
+
+    ID = task_set;
+    ID(targ_cor==2) = ID(targ_cor==2)+max(ID(:));
+    trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set});
+
+    % plot PCA
+    clear opt
+    opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
+    switch experiment
+        case 'faceColor_passiveLong'
+            new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+    end
+    opt.plot.color = new_color_set;
+    opt.plot.facecolor = new_color_set;
+    opt.plot.edgecolor = new_color_set;
+    if PLOT_FOR_REPORT
+        opt.plot.markersize = 2*[1; 1; 1; 1];
+        opt.plot.linewidth = 0.5*[1; 1; 1; 1];
+        opt.dash_line_3d = 1;
+    end
+    opt.epoch = 1;
+    opt.PC_range = [250 600];
+    opt.PSTH_conv = {'boxcar', 100};
+    opt.PC_kernel = {'bartlett', 200};
+    
+    fh = showPCA_trajectory(fnd, ID, opt);
+    % grid off
+    view([20 45])
+    % view([0 90]) % PC1-2
+    view([146 13]) % task signal;
+    format_panel(fh, 'fig_size', [150 150]); xtickangle(0) % report format
+    saveas(fh, fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.fig', monkey, experiment, n)));
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_choice-pair_%s_%s_session%d.pdf', monkey, experiment, n)));
+end
 
 %% PCA (coh*pair)
 for n = 1:n_files
@@ -279,6 +374,92 @@ for n = 1:n_files
     print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_coh_pair_%s_%s_session%d.pdf', monkey, experiment, n)));
 end
 
+%% PCA (4 prototypes subtract choice signal)
+PLOT_FOR_REPORT = false;
+for n = 1:n_files
+    % load data
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    % select unit
+    r = fnd.FR({1, [100 500]});
+    I = nanmean(r, 2)>=1; % mean FR should >= 1 Hz
+    fnd = fnd.set_unit_criteria('custom', I);
+
+    % select trial
+    fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor')); % correct trials only
+
+    % get ID
+    task_set = fnd.getp('task_set');
+    targ_cho = fnd.getp('targ_cho');
+    targ_cor = fnd.getp('targ_cor');
+
+    ID = task_set;
+    ID(targ_cho==2) = ID(targ_cho==2)+max(ID(:));
+    trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set});
+
+    % plot PCA
+    clear opt
+    opt.plot = set_plot_opt_2cond('roma', 'roma', 2);
+    switch experiment
+        case 'noCue'
+            z = 255*0.4;
+            new_color_set = [z z z; 94 148 181; z z z; 94 148 181]/255;
+        case {'learnTask2', 'faceColor', 'threeExemplar'}
+            new_color_set = [0 0 0; 44 145 224; 0 0 0; 44 145 224]/255;
+        case 'learnTask3'
+            new_color_set = [0 0 0; 58 191 153; 0 0 0; 58 191 153]/255;
+        case 'learnTask4'
+            new_color_set = [0 0 0; 240 169 58; 0 0 0; 240 169 58]/255;
+    end
+    opt.plot.color = new_color_set;
+    opt.plot.facecolor = new_color_set;
+    opt.plot.edgecolor = new_color_set;
+    if PLOT_FOR_REPORT
+        opt.plot.markersize = 2*[1; 1; 1; 1];
+        opt.plot.linewidth = 0.5*[1; 1; 1; 1];
+        opt.dash_line_3d = 1;
+    end
+    opt.epoch = 1;
+    opt.PC_range = [250 600];
+    opt.PSTH_conv = {'boxcar', 100};
+    opt.PC_kernel = {'bartlett', 200};
+
+    % process PSTH
+    r = fnd.raster; r = r{opt.epoch}*1000; % (unit, time, trial)
+    for c = 1:2 % c for choice
+        mn = nanmean(r(:,:,targ_cho(1,:)==c), 3);
+        % sd = nanstd(r(:,:,targ_cho(1,:)==c), [], 3); sd(sd==0) = 0.001;
+        r(:,:,targ_cho(1,:)==c) = (r(:,:,targ_cho(1,:)==c) - mn);
+    end
+
+    PSTH_unsmooth = nan(size(r,1), size(r,2), max(ID(:)));
+    for c = 1:max(ID(:))
+        PSTH_unsmooth(:,:,c) = nanmean(r(:,:,ID(1,:)==c), 3);
+    end
+    kernel = fspecial('average', [1, opt.PSTH_conv{2}]);
+    PSTH = nanconv(PSTH_unsmooth, kernel, 'same');
+
+    opt.PSTH = PSTH;
+    opt.PSTH_unsmooth = PSTH_unsmooth;
+
+    % check
+    figure; hold on
+    tmp = squeeze(mean(PSTH, 1));
+    for c = 1:max(ID(:))
+        plot(tmp(:,c), 'Color', opt.plot.color(c,:), 'LineStyle', opt.plot.linestyle{c});
+    end
+
+    fh = showPCA_trajectory(fnd, ID, opt);
+    % grid off
+    % view([20 45])
+    % view([0 90]) % PC1-2
+    % view([146 13]) % task signal;
+    % format_panel(fh, 'fig_size', [150 150]); xtickangle(0) % report format
+    saveas(fh, fullfile(FigDir, sprintf('PCA_4prototypes_%s_%s_session%d.fig', monkey, experiment, n)));
+    print(fh, '-dpdf', fullfile(FigDir, sprintf('PCA_4prototypes_%s_%s_session%d.pdf', monkey, experiment, n)));
+end
+
 %% single trial trajectories in PC space
 for n = 1:n_files
     % load data
@@ -306,7 +487,6 @@ for n = 1:n_files
     data = fnd.PSTH(ID, {'gaussian', 20});
 
     clear opt;
-    opt.plot = set_plot_opt('vik', 2);
     opt.PC_range = [250 600];
     opt.epoch = 1;
     [coef, detPSTH] = getPC_coef(fnd.tstamp, data, opt);

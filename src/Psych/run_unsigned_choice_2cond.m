@@ -11,7 +11,7 @@ def.verbose = true;
 if length(opt.session_list)<=10; def.tile_fh_idv = true; else; def.tile_fh_idv = false; end
 def.color = [0 0 0; 1 0 0];
 def.average = true;
-def.legend = {'Cond 1', 'Cond 2'};
+def.legend = {};
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -76,7 +76,7 @@ function fh = show_unsigned_choice_2cond_average(stat, opt)
 def.average = true;
 def.log = true;
 def.color = [0 0 0; 1 0 0];
-def.legend = {'Cond 1', 'Cond 2'};
+def.legend = {};
 if exist('opt', 'var')
     opt = safeStructAssign(def, opt);
 else
@@ -88,9 +88,14 @@ if ~opt.average; fh = []; return; end
 
 ncoh = cellfun(@(x) length(x.ucoh), stat);
 if length(unique(ncoh))~=1
-    warning('Coherence levels are not consistant across sessions. Cannot plot averaged result.')
-    fh = [];
-    return
+    warning('Coherence levels are not consistant across sessions. Delete some coherences.')
+    for n = 1:length(stat)
+        I = ismember(stat{n}.ucoh, [0 0.06 0.12 0.18 0.24 0.32 0.4 0.6 0.8 0.96]);
+        stat{n}.ucoh = stat{n}.ucoh(I);
+        stat{n}.lucoh = stat{n}.lucoh(I);
+        stat{n}.p1 = stat{n}.p1(I);
+        stat{n}.p2 = stat{n}.p2(I);
+    end
 end
 
 % extract data
@@ -136,7 +141,7 @@ format_panel(gca, ...
     'ylim', [.5 1], 'ytick', .5:.125:1, ...
     'xlim', opt.xlim, 'xtick', opt.xtick, 'xticklabel', opt.xticklabel, ...
     'xlabel', {'Stimulus strength','(% Morph)'}, 'ylabel', 'P(correct)');
-legend(opt.legend, 'location', 'bestoutside'); legend boxoff
+if ~isempty(opt.legend); legend(opt.legend, 'location', 'bestoutside'); legend boxoff; end
 
 end
 
@@ -225,8 +230,8 @@ else
 end
 plot(lucoh, p1, '.', 'markers', 7, 'Color', opt.color(1,:));
 plot(lucoh, p2, '.', 'markers', 7, 'Color', opt.color(2,:));
-cerrorbar(lucoh, p1, pse1, 'Color', opt.color(1,:));
-cerrorbar(lucoh, p2, pse2, 'Color', opt.color(2,:));
+% cerrorbar(lucoh, p1, pse1, 'Color', opt.color(1,:));
+% cerrorbar(lucoh, p2, pse2, 'Color', opt.color(2,:));
 
 if opt.log
     opt.xlim = log([3 100]/100);

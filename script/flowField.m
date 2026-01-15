@@ -140,7 +140,7 @@ for n = 1:n_files
     end
 
     % get dPC axis to plot
-    coef = load(fullfile(MainInterimDir, 'dPCA_pair-choice', sprintf('dPCA_result_%s_%s_session%d.mat', monkey, experiment, n))).data;
+    coef = load(fullfile(MainInterimDir, 'dPCA/pair-choice', sprintf('step2_dPCA_%s_%s_session%d.mat', monkey, experiment, n))).data;
     target = {{'Choice', 1}, {'Choice', 2}}; % actually coh 1 and choice 1
 
     ntarg = length(target);
@@ -196,6 +196,96 @@ end
 fh_all = plot_in_one_fig_flow_field(fh_idv, [5 3], [300 500*1.2]*2);
 print(fh_all, '-dpdf', fullfile(FigDir, sprintf('flow_field_dPC%d-%d_pair%d_%s_%s_summary.pdf', opt.dim(1), opt.dim(2), TASK_ID, monkey, experiment)));
 
+%% flow field (DIY) (task 1 or 2, PCA)
+TASK_ID = 1;
+VERBOSE = false;
+PREPROCESS_FND = true;
+
+fh_idv = cell(n_files, 1);
+for n = 1:n_files
+    % load file
+    fnd = load(get_file_path(monkey, experiment, n, 'FND_sorted')).fnd;
+    fnd = fnd.extract_epoch(2);
+
+    if PREPROCESS_FND
+        % remove low FR units
+        FR = fnd.FR({1, [100 500]}); % (unit, trial)
+        I = nanmean(FR, 2)>=1; % mean FR should >= 1 Hz
+        fnd = fnd.set_unit_criteria('custom', I);
+        fprintf('%d low FR units are removed.\n', sum(~I))
+
+        % remove units changed over time
+        % I = ~isnan(fnd.misc.SNR);
+        % fnd = fnd.set_unit_criteria('custom', I);
+        % fprintf('%d units changed over time.\n', sum(~I))
+
+        % select trial
+        fnd = fnd.extract_trial(fnd.getp('targ_cho')==fnd.getp('targ_cor'));
+        fnd = fnd.extract_trial(fnd.getp('task_set')==TASK_ID);
+    end
+
+    % get PC space
+    % task_set = fnd.getp('task_set');
+    % targ_cho = fnd.getp('targ_cho');
+    % targ_cor = fnd.getp('targ_cor');
+    % ID = targ_cho; ID(targ_cho~=targ_cor) = NaN; % correct trials only
+    % ID(task_set~=TASK_ID) = NaN; % one task only
+    % if VERBOSE; trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set}); end
+    % 
+    % data = fnd.PSTH(ID, {'gaussian', 20}); % the kernel is actually {'gaussian', [1 20*6], 20}
+    % 
+    % clear opt;
+    % opt.epoch = 1;
+    % opt.PC_range = [250 600];
+    % [coef, detPSTH] = getPC_coef(fnd.tstamp, data, opt); % coeff ..(feature, pc); detPSTH ..(unit, time)
+
+    % get DIY axis
+    task_set = fnd.getp('task_set');
+    targ_cho = fnd.getp('targ_cho');
+    targ_cor = fnd.getp('targ_cor');
+    ID = targ_cho;
+    ID(targ_cho~=targ_cor) = NaN; % correct trials only
+    ID(task_set~=TASK_ID) = NaN; % one task only
+    trial_classifier_result(ID, {'targ_cor', 'targ_cho', 'task_set'}, {targ_cor, targ_cho, task_set});
+
+    psth = fnd.PSTH(ID, {'gaussian', 20}); psth = psth{1}; % (unit, time, condition)
+    psth_mn = mean(psth, 3);
+    psth_detrend = psth - psth_mn;
+
+    tstamp = fnd.tstamp{1};
+    vector_t200 = psth_detrend(:,tstamp==200,2) - psth_detrend(:,tstamp==200,1); vector_t200 = vector_t200 / norm(vector_t200);
+    vector_t600 = psth_detrend(:,tstamp==600,2) - psth_detrend(:,tstamp==600,1); vector_t600 = vector_t600 / norm(vector_t600);
+    coeff = [vector_t200, vector_t600];
+
+    % calculate flow field
+    clear opt;
+    opt.coeff = coeff;
+    opt.psth_mn = psth_mn;
+    opt.dim = [1 2];
+    opt.conv_kernel = fspecial('gaussian', [1 20*6], 20);
+    opt.bin_num = 20;
+
+    data = calc_flow_field(fnd.tstamp{1}, fnd.raster{1}, ID, opt);
+
+    % show flow field (PC 1-2)
+    clear pltopt;
+    pltopt.min_sample = size(fnd.data{1}, 3);
+    pltopt.trj_color = [
+        0.00  0.45  0.74;
+        0.85  0.33  0.10];
+    pltopt.legend = {'Choice 1', 'Choice 2'};
+    pltopt.xlabel = 'PC 1';
+    pltopt.ylabel = 'PC 2';
+    pltopt.title = sprintf('Pair %d', TASK_ID);
+    
+    fh_idv{n} = show_flow_field(data, pltopt);
+    xlim([-100 100]); ylim([-80 80])
+    print(fh_idv{n}, '-dpdf', fullfile(FigDir, sprintf('flow_field_PC%d-%d_pair%d_%s_%s_session%d.pdf', opt.dim(1), opt.dim(2), TASK_ID, monkey, experiment, n)));
+end
+
+fh_all = plot_in_one_fig_flow_field(fh_idv, [5 3], [300 500*1.2]*2);
+print(fh_all, '-dpdf', fullfile(FigDir, sprintf('flow_field_PC%d-%d_pair%d_%s_%s_summary.pdf', opt.dim(1), opt.dim(2), TASK_ID, monkey, experiment)));
+
 %% flow field (task 1 or 2, PCA)
 TASK_ID = 1;
 VERBOSE = false;
@@ -241,8 +331,8 @@ for n = 1:n_files
 
     % calculate flow field
     clear opt;
-    opt.PC_coef = coef;
-    opt.detPSTH = detPSTH;
+    opt.coeff = coef;
+    opt.psth_mn = detPSTH;
     opt.dim = [1 2];
     opt.conv_kernel = fspecial('gaussian', [1 20*6], 20);
     opt.bin_num = 20;
